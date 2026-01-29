@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from guilib import *
+from guilib.pages import *
 
 
 main = tk.Tk()
@@ -33,8 +34,6 @@ def show_vocab():
 
 def show_grammar():
 	menu_pager.show_page(grammar_page)
-
-
 
 # Menu contents
 ttk.Label(menu_frame, text="Choose an activity:").grid(column=0, row=0, pady=PADDING)

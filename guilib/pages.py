@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-PADDING = 5
+from guilib import *
 
 class Page:
     """A Frame, but with extra functionality"""
