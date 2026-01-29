@@ -8,10 +8,7 @@ from guilib.pages import *
 main = tk.Tk()
 main.title("German Learning Tool")
 
-main.columnconfigure(0, weight=1)
-main.rowconfigure(0, weight=1)
-
-menu_pager = PageSwitcher(main)
+menu_pager = PageSwitcher(main, page_maker = lambda root, sticky: HeaderedPage(Page(root, sticky), header_sticky="EW"))
 menu_treer = TreePages(menu_pager, sticky="EW")
 
 # Frames
@@ -20,11 +17,11 @@ menu_page = menu_treer.get_root()
 menu_frame = menu_page.frame()
 menu_frame.columnconfigure(0, weight=1)
 
-vocab_page = menu_treer.create_subpage(menu_page)
+vocab_page = menu_treer.create_subpage(menu_page, home=True)
 vocab_frame = vocab_page.frame()
 vocab_frame.columnconfigure(0, weight=1)
 
-grammar_page = menu_treer.create_subpage(menu_page)
+grammar_page = menu_treer.create_subpage(menu_page, home=True)
 grammar_frame = grammar_page.frame()
 grammar_frame.columnconfigure(0, weight=1)
 
@@ -50,6 +47,5 @@ ttk.Label(grammar_frame, text="Grammar Exercises (Coming Soon!)").grid(column=0,
 
 # Start with menu visible
 menu_pager.show_page(menu_page)
-
 
 main.mainloop()

@@ -2,7 +2,7 @@ import argparse
 import tkinter as tk
 from tkinter import ttk
 
-from guilib.selection_state import TreeSelectionState
+from guilib.tree_selection_state import TreeSelectionState
 
 
 def build_ui_for_node(parent_frame: tk.Frame | ttk.Frame, tree: TreeSelectionState, path: list[int], name: str | None = None):
