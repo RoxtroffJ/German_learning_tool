@@ -141,7 +141,16 @@ class TreePages(Generic[P]):
 
     class TreeSubPage(HeaderedPage):
         """A subpage created by TreePages."""
-        def __init__(self, tree_page: "TreePages[P]", parent: Page, sticky: str | None = None, header_sticky: str | None = None, back: bool = True, home: bool = False):
+        def __init__(
+                self, 
+                tree_page: "TreePages[P]", 
+                parent: Page, 
+                sticky: str | None = None, 
+                header_sticky: str | None = None, 
+                back: bool = True, 
+                home: bool = False,
+                back_confirm: Callable[[], bool] | None = None,
+                home_confirm: Callable[[], bool] | None = None):
             if sticky is None:
                 sticky = tree_page._sticky
 
@@ -152,15 +161,24 @@ class TreePages(Generic[P]):
             header_frame = self._header_frame
             
             if back:
+
+                def callback():
+                    if back_confirm is None or back_confirm():
+                        tree_page._page_switcher.show_page(parent)
+
                 # Back button to parent
-                back_button = ttk.Button(header_frame, text="Back", command=lambda: tree_page._page_switcher.show_page(parent))
+                back_button = ttk.Button(header_frame, text="Back", command=callback)
                 back_button.grid(column=0, row=0, padx=PADDING, sticky="W")
             else:
                 back_button = None
 
             if home:
                 # Home button to root
-                home_button = ttk.Button(header_frame, text="Home", command=lambda: tree_page._page_switcher.show_page(tree_page._root))
+                def callback():
+                    if home_confirm is None or home_confirm():
+                        tree_page._page_switcher.show_page(tree_page._root)
+
+                home_button = ttk.Button(header_frame, text="Home", command=callback)
                 home_button.grid(column=1, row=0, padx=PADDING, sticky="W")
             else:
                 home_button = None
@@ -177,11 +195,16 @@ class TreePages(Generic[P]):
         def header_frame(self):
             return self._sub_header_frame
 
-    def create_subpage(self, parent: Page, sticky: str | None = None, back: bool = True, home: bool = False):
+    def create_subpage(
+            self, parent: 
+            Page, sticky: str | None = None, 
+            back: bool = True, home: bool = False, 
+            back_confirm: Callable[[], bool] | None = None,
+            home_confirm: Callable[[], bool] | None = None):
         """
         Creates a subpage of the given parent page.
         Undefined behaviour if the parent page has not been created in the root component.
         """
         
-        return self.TreeSubPage(self, parent, sticky=sticky, back=back, home=home)
+        return self.TreeSubPage(self, parent, sticky=sticky, back=back, home=home, back_confirm=back_confirm, home_confirm=home_confirm)
 
