@@ -1,3 +1,10 @@
+import sys
+import os
+
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 import tkinter as tk
 from tkinter import ttk
 
@@ -52,7 +59,7 @@ def menu_page_maker(root: tk.Misc, sticky: str):
 	return header_footer_page
 
 menu_pager = PageSwitcher(main, page_maker=menu_page_maker)
-menu_treer = TreePages(menu_pager, sticky="N")
+menu_treer = TreePages(menu_pager, sticky="")
 
 # Pages
 

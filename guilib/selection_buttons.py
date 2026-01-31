@@ -1,9 +1,7 @@
 """Buttons for selection tree. Based on tree_selection_state."""
 
 import tkinter.ttk as ttk
-from typing import Any, Generic, TypeVar
-
-from pyparsing import Callable
+from typing import Any, Generic, TypeVar, Callable
 
 from guilib import PADDING
 from guilib.pages import HeaderedPage
