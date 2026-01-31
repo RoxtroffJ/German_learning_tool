@@ -157,7 +157,7 @@ class PageSwitcher(Generic[_P]):
     @overload
     def create_page(self, *, sticky: str = ..., page_maker: Callable[[tk.Misc, str], _P2]) -> _P2: ...
 
-    def create_page(self, sticky: str = "NSEW", page_maker: Callable[[tk.Misc, str], _P2] | None = None) -> _P | _P2:
+    def create_page(self, sticky: str = "NSEW", page_maker: Callable[[tk.Misc, str], _P2] | None = None):
         """Creates a new page in the root component and returns it."""
 
         pager = page_maker if page_maker is not None else self._page_maker
@@ -219,9 +219,9 @@ class TreePages(Generic[_HP, _RT]):
         self._page_switcher = page_switcher
 
         self._sticky = sticky
-        self._root = page_switcher.create_page(sticky=sticky, page_maker=root_page_maker)
+        self._root = cast(_RT, page_switcher.create_page(sticky=sticky, page_maker=root_page_maker))
 
-    def get_root(self):
+    def get_root(self) -> _RT:
         """Returns the root page with its precise type `_RT`."""
         return self._root
 

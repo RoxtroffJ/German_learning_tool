@@ -87,3 +87,4 @@ class VocabularySelectionPage(TreePages.TreeSubPage[_HP], Generic[_HP]):
                 selection_state,
                 p,
             )
+
