@@ -3,30 +3,75 @@ from tkinter import ttk
 
 from guilib import *
 from guilib.pages import *
-import guilib.settings_gui as settings
+import guilib.settings_gui as settings_gui
+import guilib.vocabulary_gui as vocabulary_gui
+from guilib.tree_selection_state import TreeSelectionState
+import guilib.selection_buttons as selection_buttons
+from tree import Path
 
 
-main = tk.Tk()
-main.title("German Learning Tool")
+main, settings = init_gui()
 
-menu_pager = PageSwitcher(main, page_maker = lambda root, sticky: HeaderedPage(Page(root, sticky), header_sticky="EW"))
+selection_state = TreeSelectionState()
+
+def no_foot_page_maker(root: tk.Misc, sticky: str):
+	page = Page(root, sticky)
+	header_page = HeaderedPage(page, header_sticky="EW")
+
+	return header_page
+
+def menu_page_maker(root: tk.Misc, sticky: str):
+	page = Page(root, sticky)
+	footer_page = FooteredPage(page, footer_sticky="EW")
+	header_footer_page = HeaderedPage(footer_page, header_sticky="EW")
+
+	footer_frame = footer_page.footer_frame()
+	footer_frame.columnconfigure(0, weight=1)
+
+	start_button = ttk.Button(footer_frame)
+	start_button.grid(column=0, row=0, pady=PADDING)
+
+	def formatter(selected: bool, nb_selected: int) -> str:
+		if nb_selected == 0:
+			# Disable button if nothing selected
+			start_button.config(state = tk.DISABLED)
+			return "Start"
+		else:
+			# Enable button
+			start_button.config(state = tk.NORMAL)
+			return f"Start ({nb_selected} selected)"
+
+	selection_buttons.stylify_button(
+		start_button, 
+		selection_state, 
+		Path([]),
+		label_format=formatter
+	)
+
+
+	return header_footer_page
+
+menu_pager = PageSwitcher(main, page_maker=menu_page_maker)
 menu_treer = TreePages(menu_pager, sticky="EW")
 
-# Frames
+# Pages
 
 menu_page = menu_treer.get_root()
 menu_frame = menu_page.frame()
 menu_frame.columnconfigure(0, weight=1)
 
-vocab_page = menu_treer.create_subpage(menu_page, home=True)
-vocab_frame = vocab_page.frame()
-vocab_frame.columnconfigure(0, weight=1)
+vocab_page = vocabulary_gui.VocabularySelectionPage(
+	menu_treer,
+	menu_page,
+	selection_state,
+	Path([])
+)
 
 grammar_page = menu_treer.create_subpage(menu_page, home=True)
 grammar_frame = grammar_page.frame()
 grammar_frame.columnconfigure(0, weight=1)
 
-settings_page = settings.settings_tree_page(settings.load_settings(), menu_treer, menu_page, home=True)
+settings_page = settings_gui.settings_tree_page(settings_gui.load_settings(), menu_treer, menu_page, home=True, page_maker=no_foot_page_maker)
 
 # Functions to switch between frames
 def show_vocab():
@@ -50,9 +95,6 @@ menu_header.columnconfigure(0, weight=1)
 
 ttk.Label(menu_header, text="German Learning Tool").grid(column=0, row=0, padx=PADDING, sticky="W")
 ttk.Button(menu_header, text="Settings", command=show_settings).grid(column=1, row=0, padx=PADDING, sticky="E")
-
-# Vocab activity contents
-ttk.Label(vocab_frame, text="Vocabulary Practice Activity (Coming Soon!)").grid(column=0, row=0, pady=PADDING)
 
 # Grammar activity contents (dummy)
 ttk.Label(grammar_frame, text="Grammar Exercises (Coming Soon!)").grid(column=0, row=0, pady=PADDING)

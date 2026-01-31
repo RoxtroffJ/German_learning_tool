@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
-from typing import Callable, Generic, TypeVar
+from typing import Any, Callable, Generic, Type, TypeVar, overload
+from typing import cast
 
 from guilib import *
 
@@ -56,16 +57,23 @@ class Page:
         return columnspan, rowspan
 
 
-class HeaderedPage(Page):
+_P = TypeVar("_P", bound=Page, covariant=True)
+
+class HeaderedPage(Generic[_P], Page):
     """A page with a header frame on top."""
-    def __init__(self, page: Page, header_sticky: str = "EW"):
+    def __init__(self, page: _P, header_sticky: str = "EW"):
         self._root = page._root
-        
-        self.__main_page = page
+
+        self.__main_page: _P = page
 
         self._header_frame = ttk.Frame(self._root)
 
         self.__header_sticky = header_sticky
+
+    @property
+    def inner_page(self) -> _P:
+        """Returns the inner main page."""
+        return self.__main_page
 
     def frame(self):
         """Returns the main frame in which you draw."""
@@ -92,25 +100,73 @@ class HeaderedPage(Page):
         self.__main_page.hide_page()
         self._header_frame.grid_remove()
 
-P = TypeVar("P", bound=Page)
+class FooteredPage(Generic[_P], Page):
+    """A page with a footer frame on bottom."""
+    def __init__(self, page: _P, footer_sticky: str = "EW"):
+        self._root = page._root
 
-class PageSwitcher(Generic[P]):
+        self.__main_page: _P = page
+
+        self._footer_frame = ttk.Frame(self._root)
+
+        self.__footer_sticky = footer_sticky
+
+    @property
+    def inner_page(self) -> _P:
+        """Returns the inner main page."""
+        return self.__main_page
+
+    def frame(self):
+        """Returns the main frame in which you draw."""
+        return self.__main_page.frame()
+    
+    def footer_frame(self):
+        """Returns the footer frame in which you can draw."""
+        return self._footer_frame
+    
+    def _display_page_at(self, column: int = 0, row: int = 0, columnspan: int = 1, rowspan: int = 1) -> tuple[int, int]:
+        """Display the page at given grid position, and returns the column and row span used."""
+
+        footer_rowspan = 1
+        main_rowspan = max(rowspan - footer_rowspan, 1)
+
+        main_columnspan, main_rowspan = self.__main_page._display_page_at(column, row, columnspan, main_rowspan)
+        
+        self._footer_frame.grid(column=column, row=row + main_rowspan, columnspan=main_columnspan, rowspan=footer_rowspan, sticky=self.__footer_sticky)
+        
+        return main_columnspan, main_rowspan + footer_rowspan
+    
+    def hide_page(self):
+        """Hide the page."""
+        self.__main_page.hide_page()
+        self._footer_frame.grid_remove()
+
+_P2 = TypeVar("_P2", bound=Page, covariant=True)
+
+class PageSwitcher(Generic[_P]):
     """Manages page display in a root component. Allows to switch to a new page easily. 
     Does not stores the pages, this is up to you."""
     
-    def __init__(self, root: tk.Misc, page_maker: Callable[[tk.Misc, str], P] = Page):
+    def __init__(self, root: tk.Misc, page_maker: Callable[[tk.Misc, str], _P] = Page):
         self.root = root
         self.__current_page = None
-        self.__page_maker = page_maker
+        self._page_maker = page_maker
     
+    @overload
+    def create_page(self, *, sticky: str = ..., page_maker: None = ...) -> _P: ...
+    @overload
+    def create_page(self, *, sticky: str = ..., page_maker: Callable[[tk.Misc, str], _P2]) -> _P2: ...
 
-    def create_page(self, sticky: str = "NSEW"):
+    def create_page(self, sticky: str = "NSEW", page_maker: Callable[[tk.Misc, str], _P2] | None = None) -> _P | _P2:
         """Creates a new page in the root component and returns it."""
 
-        page = self.__page_maker(self.root, sticky)
+        pager = page_maker if page_maker is not None else self._page_maker
+        
+        page = pager(self.root, sticky)
 
         return page
-    
+
+
     def show_page(self, page: Page):
         """Shows the page. Undefined behaviour if the page has not been created in the root component."""
 
@@ -120,41 +176,104 @@ class PageSwitcher(Generic[P]):
         page.display_page()
         self.__current_page = page
 
+_HP = TypeVar("_HP", bound=HeaderedPage[Any], covariant=True)
+_RT = TypeVar("_RT", bound=Page, covariant=True)
 
+_S = TypeVar("_S", bound="TreePages[Any, Any]", covariant=True)
 
-class TreePages(Generic[P]):
+_HP2 = TypeVar("_HP2", bound=HeaderedPage[Any], covariant=True)
+
+class TreePages(Generic[_HP, _RT]):
     """Class to help with pages in a tree structure, where each page can have multiple subpages.
     Works together with PageManager.
     Each page has options to go back to the parent page or to the root page.
     """
 
-    def __init__(self, page_switcher: PageSwitcher[P], sticky: str = "NSEW"):
+    @overload
+    def __new__(
+        cls: Type["TreePages[_HP, _HP]"], 
+        page_switcher: PageSwitcher[_HP], *, 
+        sticky: str = ..., 
+        root_page_maker: None = ...
+    ) -> "TreePages[_HP, _HP]": ...
+    
+    @overload
+    def __new__(
+        cls: Type["TreePages[_HP, _RT]"], 
+        page_switcher: PageSwitcher[_HP], *, 
+        sticky: str = ..., 
+        root_page_maker: Callable[[tk.Misc, str], _RT]
+    ) -> "TreePages[_HP, _RT]": ...
+    
+    def __new__(
+            cls: Type[_S], 
+            page_switcher: PageSwitcher[HeaderedPage[_P]], *, 
+            sticky: str = "NSEW", 
+            root_page_maker: Callable[[tk.Misc, str], _RT] | None = None
+        ) -> _S:
+        
+        # runtime implementation compatible with the overloads: return instance of `cls` (type S)
+        return cast(_S, object.__new__(cast(Type[object], cls)))
+
+    def __init__(self, page_switcher: PageSwitcher[HeaderedPage[_P]], *, sticky: str = "NSEW", root_page_maker: Callable[[tk.Misc, str], _RT] | None = None):
         self._page_switcher = page_switcher
 
         self._sticky = sticky
-        self._root = page_switcher.create_page(sticky=sticky)
-        
-    
-    def get_root(self):
-        """Returns the root page."""
-        return self._root            
+        self._root = page_switcher.create_page(sticky=sticky, page_maker=root_page_maker)
 
-    class TreeSubPage(HeaderedPage):
+    def get_root(self):
+        """Returns the root page with its precise type `_RT`."""
+        return self._root
+
+    class TreeSubPage(HeaderedPage[Any], Generic[_HP2]):
         """A subpage created by TreePages."""
+        @overload
         def __init__(
                 self, 
-                tree_page: "TreePages[P]", 
+                tree_page: "TreePages[_HP2, Page]", 
+                parent: Page, 
+                *,
+                sticky: str | None = None, 
+                header_sticky: str | None = None, 
+                back: bool = True, 
+                home: bool = False,
+                back_confirm: Callable[[], bool] | None = None,
+                home_confirm: Callable[[], bool] | None = None,
+                page_maker: None = None
+        ) -> None: ...
+        @overload
+        def __init__(
+                self, 
+                tree_page: "TreePages[HeaderedPage[Any], Page]", 
+                parent: Page, 
+                *,
+                sticky: str | None = None, 
+                header_sticky: str | None = None, 
+                back: bool = True, 
+                home: bool = False,
+                back_confirm: Callable[[], bool] | None = None,
+                home_confirm: Callable[[], bool] | None = None,
+                page_maker: Callable[[tk.Misc, str], _HP2]
+        ) -> None: ...
+
+        def __init__(
+                self, 
+                tree_page: "TreePages[_HP2, Page] | TreePages[HeaderedPage[Any], Page]", 
                 parent: Page, 
                 sticky: str | None = None, 
                 header_sticky: str | None = None, 
                 back: bool = True, 
                 home: bool = False,
                 back_confirm: Callable[[], bool] | None = None,
-                home_confirm: Callable[[], bool] | None = None):
+                home_confirm: Callable[[], bool] | None = None,
+                page_maker: Callable[[tk.Misc, str], HeaderedPage[_P2]] | None = None
+        ):
+            
             if sticky is None:
                 sticky = tree_page._sticky
 
-            super().__init__(tree_page._page_switcher.create_page(sticky=sticky), header_sticky= header_sticky if header_sticky is not None else "EW")
+            # Initialize itself as a new page in the page switcher
+            self.__dict__.update(tree_page._page_switcher.create_page(sticky=sticky, page_maker=page_maker).__dict__)
 
             # Header frame
 
@@ -195,16 +314,46 @@ class TreePages(Generic[P]):
         def header_frame(self):
             return self._sub_header_frame
 
+    
+    @overload
     def create_subpage(
-            self, parent: 
-            Page, sticky: str | None = None, 
-            back: bool = True, home: bool = False, 
-            back_confirm: Callable[[], bool] | None = None,
-            home_confirm: Callable[[], bool] | None = None):
+        self, parent: Page, *,
+        sticky: str | None = ..., 
+        back: bool = ..., home: bool = ..., 
+        back_confirm: Callable[[], bool] | None = ...,
+        home_confirm: Callable[[], bool] | None = ...,
+        page_maker: None = ...) -> "TreePages.TreeSubPage[_HP]": ...
+
+    @overload
+    def create_subpage(
+        self, parent: Page, *,
+        sticky: str | None = ..., 
+        back: bool = ..., home: bool = ..., 
+        back_confirm: Callable[[], bool] | None = ...,
+        home_confirm: Callable[[], bool] | None = ...,
+        page_maker: Callable[[tk.Misc, str], HeaderedPage[_HP2]]) -> "TreePages.TreeSubPage[_HP2]": ...
+
+    def create_subpage(
+        self, parent: Page, 
+        sticky: str | None = None, 
+        back: bool = True, home: bool = False, 
+        back_confirm: Callable[[], bool] | None = None,
+        home_confirm: Callable[[], bool] | None = None,
+        page_maker: Callable[[tk.Misc, str], HeaderedPage[_HP2]] | None = None
+    ):
         """
         Creates a subpage of the given parent page.
         Undefined behaviour if the parent page has not been created in the root component.
         """
         
-        return self.TreeSubPage(self, parent, sticky=sticky, back=back, home=home, back_confirm=back_confirm, home_confirm=home_confirm)
+        return self.TreeSubPage(
+            self, 
+            parent, 
+            sticky=sticky, 
+            back=back, 
+            home=home, 
+            back_confirm=back_confirm, 
+            home_confirm=home_confirm, 
+            page_maker=page_maker)
+
 

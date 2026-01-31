@@ -1,0 +1,212 @@
+from pathlib import Path
+
+from enum import Enum
+
+VOC_FOLDER = Path.cwd() / "data" / "vocabulary"
+VOC_SCORES_FOLDER = Path.cwd() / "scores" / "vocabulary"
+
+VOC_FOLDER.mkdir(parents=True, exist_ok=True)
+VOC_SCORES_FOLDER.mkdir(parents=True, exist_ok=True)
+
+
+class Gender(Enum):
+    """Enumeration of German noun genders."""
+    MASCULINE = "M"
+    FEMININE = "F"
+    NEUTRAL = "N"
+    PLURAL = "P"
+
+    def __str__(self) -> str:
+        return self.value
+
+    @classmethod
+    def from_str(cls, s: str) -> "Gender":
+        for gender in cls:  
+            if gender.value == s:
+                return gender
+        raise ValueError(f"Unknown gender string: {s}")
+
+class _QuestionData:
+    """Internal data structure for vocabulary question storage."""
+    def __init__(self, question: str, answer: str):
+        self.question = question
+        self.answer = answer
+
+class _QuestionScore:
+    """Internal data structure for vocabulary question score storage."""
+    def __init__(self, total: int = 0, correct: int = 0, streak: int = 0):
+        self.correct = correct
+        self.total = total
+        self.streak = streak
+
+class _VocabularyFile:
+    """Handles loading and saving of vocabulary files."""
+    
+    @staticmethod
+    def _filepath_for_name(name: str) -> Path:
+        return VOC_FOLDER / f"{name}.voc"
+    
+    def __init__(self, name: str, questions: list[_QuestionData] = []):
+        self.filepath = self._filepath_for_name(name)
+        self.questions: list[_QuestionData] = questions
+
+
+    @classmethod
+    def load(cls, name: str) -> "_VocabularyFile":
+        """Loads a vocabulary file."""
+        
+        vocab_file = cls(name)
+        filepath = vocab_file.filepath
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        
+        version = lines[0].strip()
+        if version != "0":
+            raise ValueError(f"Unsupported vocabulary file version: {version}")
+        
+        for line in lines[1:]:
+            def fail_msg():
+                print(f"Warning: skipping malformed line in {filepath}: {line.strip()}")
+
+            parts = line.strip().split("\t")
+            if len(parts) < 2:
+                fail_msg()
+                continue
+            
+            question = parts[0]
+            answer = parts[1]
+            
+
+            data = _QuestionData(question, answer)
+            vocab_file.questions.append(data)
+
+        return vocab_file
+    
+    def save(self):
+        """Saves the vocabulary file to its filepath."""
+        with open(self.filepath, "w", encoding="utf-8") as f:
+            f.write("0\n")  # version
+            for q in self.questions:
+                line = f"{q.question}\t{q.answer}\n"
+                f.write(line)
+
+class _VocabularyScoreFile:
+    """Handles loading and saving of vocabulary score files."""
+    
+    @staticmethod
+    def _filepath_for_name(name: str) -> Path:
+        return VOC_SCORES_FOLDER / f"{name}.voc_score"
+    
+    def __init__(self, name: str, scores: list[_QuestionScore] = []):
+        self.filepath = self._filepath_for_name(name)
+        self.scores: list[_QuestionScore] = scores
+    
+    @classmethod
+    def load(cls, name: str) -> "_VocabularyScoreFile":
+        """Loads a vocabulary score file."""
+        
+        score_file = cls(name)
+        filepath = score_file.filepath
+
+        # Binary files encoding with version header
+
+        if not filepath.exists():
+            return score_file  # no scores yet
+
+        with open(filepath, "rb") as f:
+            lines = f.readlines()
+
+        version = lines[0].strip().decode("utf-8")
+        if version != "0":
+            raise ValueError(f"Unsupported vocabulary score file version: {version}")
+        
+        for line in lines[1:]:
+            # Each line is 3 16 bits binary integers: total, correct, streak with no separator
+            if len(line) != 6:
+                print(f"Warning: skipping malformed line in {filepath}: {line}")
+                continue
+
+            total = int.from_bytes(line[0:2], byteorder="big")
+            correct = int.from_bytes(line[2:4], byteorder="big")
+            streak = int.from_bytes(line[4:6], byteorder="big")
+
+            score = _QuestionScore(total, correct, streak)
+            score_file.scores.append(score)
+        
+        return score_file
+    
+    def save(self):
+        """Saves the vocabulary score file to its filepath."""
+        with open(self.filepath, "wb") as f:
+            f.write(b"0\n")  # version
+            for s in self.scores:
+                total_bytes = s.total.to_bytes(2, byteorder="big")
+                correct_bytes = s.correct.to_bytes(2, byteorder="big")
+                streak_bytes = s.streak.to_bytes(2, byteorder="big")
+                f.write(total_bytes + correct_bytes + streak_bytes)
+
+
+
+class Question:
+    """Represents a single vocabulary question."""
+    def __init__(self, data: _QuestionData, score: _QuestionScore | None = None):
+        self._data = data
+        self._score = score if score is not None else _QuestionScore()
+    
+
+    def add_to_files(self, voc_file: _VocabularyFile, score_file: _VocabularyScoreFile):
+        """Adds this question to the given vocabulary and score files."""
+        voc_file.questions.append(self._data)
+        score_file.scores.append(self._score)
+
+class QuestionSet:
+    """Represents a set of vocabulary questions with their scores."""
+    def __init__(self, name: str):
+        self._name = name
+        
+        self._vocab_file = _VocabularyFile.load(name)
+        self._score_file = _VocabularyScoreFile.load(name)
+
+        # Ensure scores list matches questions list
+        while len(self._score_file.scores) < len(self._vocab_file.questions):
+            self._score_file.scores.append(_QuestionScore())
+        
+    @property
+    def questions(self) -> list[Question]:
+        """Returns the list of vocabulary questions with their scores."""
+        vocab_questions: list[Question] = []
+        for data, score in zip(self._vocab_file.questions, self._score_file.scores):
+            vocab_questions.append(Question(data, score))
+        return vocab_questions
+    
+    @property
+    def name(self) -> str:
+        """Returns the name"""
+        return self._name
+
+    def add_question(self, question: Question):
+        """Adds a new vocabulary question to the set."""
+        question.add_to_files(self._vocab_file, self._score_file)
+
+    def save(self):
+        """Saves the vocabulary set to its files."""
+        self._vocab_file.save()
+        self._score_file.save()
+        
+    def restore(self):
+        self.__dict__.update(QuestionSet(self._name).__dict__)
+
+    @classmethod
+    def load_all(cls):
+        """Loads all vocabulary sets from the vocabulary folder."""
+        vocab_sets: list[QuestionSet] = []
+        for filepath in VOC_FOLDER.glob("*.voc"):
+            try:
+                name = filepath.stem
+                vocab_set = cls(name)
+                vocab_sets.append(vocab_set)
+            except Exception as e:
+                print(f"Error loading vocabulary set from {filepath}: {e}")
+                continue
+        return vocab_sets

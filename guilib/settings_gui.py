@@ -2,12 +2,10 @@ import tkinter as tk
 import tkinter.ttk as ttk
 import tkinter.messagebox as tkmsgbox
 
-from guilib import PADDING
+from guilib import *
 from guilib.pages import *
 
-from settings import *
-
-TypeVar("P", bound=Page)
+from lib.settings import *
 
 def load_settings() -> Settings:
     """Loads and applies the settings from the settings file."""
@@ -15,7 +13,18 @@ def load_settings() -> Settings:
     apply_settings(settings)
     return settings
 
-def settings_tree_page(settings: Settings, menu_treer: TreePages[P], parent: Page, sticky: str | None = None, back: bool = True, home: bool = False):
+_HP = TypeVar("_HP", bound=HeaderedPage[Any], covariant=True)
+
+def settings_tree_page(
+        settings: Settings, 
+        menu_treer: TreePages[HeaderedPage[Any], Page], 
+        parent: Page, 
+        *,
+        sticky: str | None = None, 
+        back: bool = True, 
+        home: bool = False, 
+        page_maker: Callable[[tk.Misc, str], _HP]
+) -> TreePages.TreeSubPage[_HP]:
     """Creates a TreePages for settings pages."""
     # Save confirmation dialog
     def exit_confirm() -> bool:
@@ -35,7 +44,7 @@ def settings_tree_page(settings: Settings, menu_treer: TreePages[P], parent: Pag
         return True
 
     # Create the page
-    page = menu_treer.create_subpage(parent, sticky=sticky, back=back, home=home, back_confirm=exit_confirm, home_confirm=exit_confirm)
+    page = menu_treer.create_subpage(parent, sticky=sticky, back=back, home=home, back_confirm=exit_confirm, home_confirm=exit_confirm, page_maker=page_maker)
 
     frame = page.frame()
     _draw_settings_frame(frame, settings)
@@ -73,6 +82,7 @@ def _apply_theme(theme: str):
     """Applies the given theme to the application."""
     style = ttk.Style()
     style.theme_use(theme)
+    set_custom_styles()
 
 def apply_settings(settings: Settings):
     """Applies the given settings to the application."""

@@ -1,7 +1,7 @@
 import tkinter as tk
 from typing import Callable, List
 
-from tree import Tree
+from tree import Tree, Path
 
 class TreeSelectionState:
     """State tracking for the selection of things in a tree structure.
@@ -22,18 +22,23 @@ class TreeSelectionState:
         self._tree = Tree(TreeSelectionState._NodeData())
 
     # --- tree helpers -------------------------------------------------
-    def _sub_tree(self, path: List[int]) -> Tree[_NodeData]:
+    def _sub_tree(self, path: Path) -> Tree[_NodeData]:
         return self._tree.node_at(path)
 
-    def _node(self, path: List[int]) -> _NodeData:
+    def _node(self, path: Path) -> _NodeData:
         return self._sub_tree(path).value
 
-    def children_paths(self, path: List[int]) -> List[List[int]]:
+    def get(self, path: Path) -> tuple[bool, int]:
+        """Returns the selected state of the node at `path`."""
+        node = self._node(path)
+        return (node.selected.get(), node.nb_selected_leafs.get())
+
+    def children_paths(self, path: Path) -> List[Path]:
         """Returns the list of child paths for the node at `path`."""
         return self._tree.children_paths(path)
 
     # --- adding nodes ------------------------------------------------
-    def add_node(self, parent_path: List[int], selected_callback: Callable[[bool], None] | None = None, nb_callback: Callable[[int], None] | None = None) -> List[int]:
+    def add_node(self, parent_path: Path, selected_callback: Callable[[bool], None] | None = None, nb_callback: Callable[[int], None] | None = None) -> Path:
         """Add a node under `parent_path`. Returns the full path to the new node.
 
         `parent_path` is a list of child indices from the root; empty list
@@ -46,7 +51,7 @@ class TreeSelectionState:
         return new_path
 
     # --- adding callbacks to nodes -------------------------------
-    def set_callbacks(self, path: List[int], selected_callback: Callable[[bool], None] | None = None, nb_callback: Callable[[int], None] | None = None):
+    def set_callbacks(self, path: Path, selected_callback: Callable[[bool], None] | None = None, nb_callback: Callable[[int], None] | None = None):
         """Add a callback to the node at `path`.
 
         The callback is called with two arguments: the new selected value
@@ -59,7 +64,18 @@ class TreeSelectionState:
         if nb_callback is not None:
             node.nb_selected_leafs.trace_add("write", lambda a,b,c: nb_callback(node.nb_selected_leafs.get()))
 
-    def tracker_vars(self, path: List[int]) -> tuple[tk.BooleanVar, tk.IntVar]:
+    def set_double_callback(self, path: Path, callback: Callable[[bool, int], None]):
+        """Add a callback to the node at `path`.
+
+        The callback is called with two arguments: the new selected value
+        (bool) and the number of selected leafs under this node (int).
+        """
+        node = self._node(path)
+
+        node.selected .trace_add("write", lambda a,b,c: callback(node.selected.get(), node.nb_selected_leafs.get()))
+        node.nb_selected_leafs.trace_add("write", lambda a,b,c: callback(node.selected.get(), node.nb_selected_leafs.get()))
+
+    def tracker_vars(self, path: Path) -> tuple[tk.BooleanVar, tk.IntVar]:
         """Returns the tracker variables for the node at `path`."""
         node = self._node(path)
 
@@ -71,7 +87,7 @@ class TreeSelectionState:
 
         return (bool_var, int_var)
 
-    def tracker_vars_formatted(self, path: List[int], format: Callable[[int], str] = lambda x: "(" + str(x) + ")" if x != 0 else "") -> tuple[tk.BooleanVar, tk.StringVar]:
+    def tracker_vars_formatted(self, path: Path, format: Callable[[int], str] = lambda x: "(" + str(x) + ")" if x != 0 else "") -> tuple[tk.BooleanVar, tk.StringVar]:
         """Returns the tracker variables for the node at `path`.
 
         The second variable is formatted using the provided function.
@@ -86,7 +102,7 @@ class TreeSelectionState:
 
         return (bool_var, str_var)
     # --- selection logic ---------------------------------------------
-    def select_all_callback(self, path: List[int]):
+    def select_all_callback(self, path: Path):
         """Callback for a select-all button."""
         
         tree = self._sub_tree(path)
@@ -110,7 +126,7 @@ class TreeSelectionState:
         # Update counts on the path up to root
         self._update_counts_upwards(path, delta)
 
-    def _propagate_to_descendants(self, path: List[int], set_to: bool):
+    def _propagate_to_descendants(self, path: Path, set_to: bool):
         node = self._sub_tree(path)
         
         def recurse(t: Tree[TreeSelectionState._NodeData]) -> int:
@@ -142,10 +158,11 @@ class TreeSelectionState:
         delta = recurse(node)
         return delta
 
-    def _clear_parent_select_all_upwards(self, path: List[int]):
-        node = self._sub_tree([])
-        
-        for depth in range(len(path)): # Look until parent
+    def _clear_parent_select_all_upwards(self, path: Path):
+        nodes = self._tree.all_on_path(path)
+        nodes.pop()  # Remove self
+
+        for node in nodes: # Look until parent
             data = node.value
 
             if data.selected.get():
@@ -158,19 +175,16 @@ class TreeSelectionState:
                     cdata = c.value
                     cdata.selected.set(True)
                     cdata.user_selected = True
-                
-            node = node.children[path[depth]]
 
-    def _update_counts_upwards(self, path: List[int], delta: int):
-        node = self._sub_tree([])
+    def _update_counts_upwards(self, path: Path, delta: int):
+        nodes = self._tree.all_on_path(path)
+        nodes.pop()  # Remove self
 
-        for depth in range(len(path)):
+        for node in nodes:
             data = node.value
             data.nb_selected_leafs.set(data.nb_selected_leafs.get() + delta)
 
-            node = node.children[path[depth]]
-
-    def deselect_all_callback(self, path: List[int]):
+    def deselect_all_callback(self, path: Path):
         """Callback to deselect all items under the node at `path`."""
         node = self._sub_tree(path)
 
