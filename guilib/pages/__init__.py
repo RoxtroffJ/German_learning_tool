@@ -71,6 +71,11 @@ class HeaderedPage(Generic[_P], Page):
         self.__header_sticky = header_sticky
 
     @property
+    def header_sticky(self) -> str:
+        """Returns the header sticky."""
+        return self.__header_sticky
+
+    @property
     def inner_page(self) -> _P:
         """Returns the inner main page."""
         return self.__main_page
@@ -273,8 +278,12 @@ class TreePages(Generic[_HP, _RT]):
                 sticky = tree_page._sticky
 
             # Initialize itself as a new page in the page switcher
-            self.__dict__.update(tree_page._page_switcher.create_page(sticky=sticky, page_maker=page_maker).__dict__)
+            base_page = tree_page._page_switcher.create_page(sticky=sticky, page_maker=page_maker)
 
+            self.__dict__.update(base_page.__dict__)
+
+            self.__header_sticky = header_sticky or base_page.header_sticky
+            
             # Header frame
 
             header_frame = self._header_frame
@@ -303,7 +312,7 @@ class TreePages(Generic[_HP, _RT]):
                 home_button = None
 
             sub_header = ttk.Frame(header_frame)
-            sub_header.grid(column=2, row=0, sticky=(header_sticky or "EW"))
+            sub_header.grid(column=2, row=0, sticky=self.__header_sticky)
 
             header_frame.columnconfigure(2, weight=1)
 
@@ -314,6 +323,10 @@ class TreePages(Generic[_HP, _RT]):
         def header_frame(self):
             return self._sub_header_frame
 
+        @property
+        def header_sticky(self) -> str:
+            """Returns the header sticky."""
+            return self.__header_sticky
     
     @overload
     def create_subpage(
@@ -357,3 +370,4 @@ class TreePages(Generic[_HP, _RT]):
             page_maker=page_maker)
 
 
+from guilib.pages.scrollable import *

@@ -52,13 +52,13 @@ def menu_page_maker(root: tk.Misc, sticky: str):
 	return header_footer_page
 
 menu_pager = PageSwitcher(main, page_maker=menu_page_maker)
-menu_treer = TreePages(menu_pager, sticky="EW")
+menu_treer = TreePages(menu_pager, sticky="N")
 
 # Pages
 
 menu_page = menu_treer.get_root()
 menu_frame = menu_page.frame()
-menu_frame.columnconfigure(0, weight=1)
+
 
 vocab_page = vocabulary_gui.VocabularySelectionPage(
 	menu_treer,

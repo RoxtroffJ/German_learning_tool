@@ -1,0 +1,136 @@
+import tkinter as tk
+from tkinter import ttk
+from typing import Any
+
+from guilib.pages import Page
+
+
+class ScrollablePage(Page):
+    def __init__(self, root: tk.Misc, sticky: str = "NSEW"):
+        Page.__init__(self, root, sticky)
+
+        parent = super().frame()  # the Page full frame
+
+        canvas = tk.Canvas(parent, borderwidth=0)
+        
+        # Draw canvas contour red for DEBUG
+        canvas.config(borderwidth=2, relief="groove", highlightbackground="red")
+
+        def _yview(*args: Any) -> None:
+            canvas.yview(*args) # type: ignore
+
+        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=_yview)
+
+        # This is the frame we want `frame()` to return
+        self.__scrollable_frame = ttk.Frame(canvas)
+
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Create window inside canvas
+        self._window = canvas.create_window((0, 0), window=self.__scrollable_frame, anchor="nw")
+
+
+        # Resize canvas and content (scrollable frame) to mimic sticky behavior for scrollable frame
+        # Horizontal resizing
+
+        def _on_content_configure(event: Any) -> None:
+                print("Canvas horizontal fit")
+                canvas.config(width=self.__scrollable_frame.winfo_reqwidth())
+        
+        self.__scrollable_frame.bind("<Configure>", _on_content_configure, add="+")
+        
+
+        if "e" in sticky.lower() and "w" in sticky.lower():
+            print("ScrollablePage: horizontal stretch")
+            # Canvas expands horizontally, content takes width of canvas
+            def _on_canvas_configure(event: Any) -> None:
+                print("Frame horizontal stretch")
+                canvas.itemconfig(self._window, width=canvas.winfo_width())
+            canvas.bind("<Configure>", _on_canvas_configure, add="+")
+        else:
+            print("ScrollablePage: horizontal natural")
+            # Content takes its natural width, canvas resizes to content width
+
+        
+        # Vertical resizing
+        if "n" in sticky.lower() and "s" in sticky.lower():
+            print("ScrollablePage: vertical stretch")
+            # Canvas expands vertically, content keeps its natural height -> Nothing to do
+            pass
+            
+        else:
+            print("ScrollablePage: vertical natural")
+            def _on_canvas_configure(event: Any) -> None:
+                print("Canvas vertical fit")
+                canvas.config(height=self.__scrollable_frame.winfo_reqheight())
+            self.__scrollable_frame.bind("<Configure>", _on_canvas_configure, add="+")
+        # keep canvas scrollregion in sync with contents
+        def _on_configure(event: Any) -> None:
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        self.__scrollable_frame.bind("<Configure>", _on_configure, add="+")
+        canvas.bind("<Configure>", _on_configure, add="+")
+
+        # ----- scrolling handlers -----
+        # mouse / touch wheel
+        def _on_mousewheel(event: Any) -> None:
+            # X11: event.num == 4 (up) or 5 (down)
+            if hasattr(event, "num") and event.num in (4, 5):
+                delta = -1 if event.num == 4 else 1
+                canvas.yview_scroll(delta, "units")
+            else:
+                # Windows/OSX: event.delta is multiple of 120
+                delta = int(-1 * (event.delta / 120)) if hasattr(event, "delta") else 0
+                if delta:
+                    canvas.yview_scroll(delta, "units")
+
+        # drag to scroll (useful on touch devices / pydroid)
+        self._drag_start_y: float | None = None
+
+        def _on_button_press(event: Any) -> None:
+            # Use root coords so events from child widgets still work
+            try:
+                y = event.y_root - canvas.winfo_rooty()
+            except Exception:
+                y = float(event.y)
+            self._drag_start_y = float(y)
+
+        def _on_drag(event: Any) -> None:
+            if self._drag_start_y is None:
+                return
+            try:
+                current_y = event.y_root - canvas.winfo_rooty()
+            except Exception:
+                current_y = float(event.y)
+            dy = current_y - self._drag_start_y
+            bbox = canvas.bbox("all")
+            if bbox:
+                total = bbox[3] - bbox[1]
+                if total > 0:
+                    first, _ = canvas.yview() # type: ignore
+                    new_first = first - (dy / total)
+                    canvas.yview_moveto(max(0.0, min(new_first, 1.0)))
+            self._drag_start_y = float(current_y)
+
+        def _on_button_release(event: Any) -> None:
+            self._drag_start_y = None
+
+        
+
+        canvas.bind("<ButtonPress-1>", _on_button_press)
+        self.__scrollable_frame.bind("<ButtonPress-1>", _on_button_press)
+        
+        canvas.bind("<B1-Motion>", _on_drag)
+        self.__scrollable_frame.bind("<B1-Motion>", _on_drag)
+        canvas.bind("<ButtonRelease-1>", _on_button_release)
+        self.__scrollable_frame.bind("<ButtonRelease-1>", _on_button_release)
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        canvas.bind_all("<Button-4>", _on_mousewheel)
+        canvas.bind_all("<Button-5>", _on_mousewheel)
+
+    def frame(self):
+        """Return the inner scrollable frame so callers draw into it."""
+        return self.__scrollable_frame

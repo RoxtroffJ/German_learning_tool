@@ -1,19 +1,26 @@
-from typing import Generic, TypeVar
+import tkinter as tk
+from tkinter import ttk
 
-# Declare a covariant type variable T and use it as the element type of list[T].
-# This should cause Pylance/pyright to report an error because T is used
-# in a mutable position (list[T] is mutable).
-T = TypeVar("T", covariant=True)
+from guilib import *
+from guilib.pages import ScrollablePage
 
-class Foo(Generic[T]):
-    def __init__(self, value: list[T]) -> None:
-        self.value = value
 
-class Bar(Foo[T], Generic[T]):
-    def __init__(self, foo: Foo[T]) -> None:
-        super().__init__(foo.value)
-        self._foo = foo
+# Example App
+root = tk.Tk()
+root.title("Scrollable Frame Example")
+#root.geometry("400x300")
+scrollable = ScrollablePage(root, sticky="NEW")
+scrollable.display_page()
 
-    def illegal(self, value: T) -> None:
-        self._foo.value.append(value)
-    
+# Show border of scrollable frame for DEBUG
+scrollable.frame().config(borderwidth=2, relief="groove")
+
+for i in range(100):
+    ttk.Button(scrollable.frame(), text=f"Button {i+1}").grid(row=i, column=0, pady=5)
+    ttk.Label(scrollable.frame(), text=f"Label {i+1}").grid(row=i, column=1, pady=5, sticky="EW")
+
+scrollable.frame().columnconfigure(0, weight=1)
+
+
+root.mainloop()
+

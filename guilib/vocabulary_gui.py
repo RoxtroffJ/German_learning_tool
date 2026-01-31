@@ -1,4 +1,4 @@
-import tkinter as tk
+#import tkinter as tk
 from tkinter import ttk
 
 from guilib import *
@@ -12,7 +12,7 @@ from lib.vocabulary import *
 
 _HP = TypeVar("_HP", bound=HeaderedPage[Any], covariant=True)
 
-class VocabularySelectionPage(TreePages.TreeSubPage[_HP], Generic[_HP]):
+class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.TreeSubPage[_HP]], Generic[_HP]):
     """A page to select the vocabulary questions sets."""
 
     def __init__(
@@ -21,7 +21,7 @@ class VocabularySelectionPage(TreePages.TreeSubPage[_HP], Generic[_HP]):
             parent: Page, 
             selection_state: TreeSelectionState, 
             parent_path: TreePath, 
-            sticky: str | None = None, 
+            sticky: str | None = "NSEW", 
             back: bool = True, 
             home: bool = False
     ):
@@ -32,9 +32,8 @@ class VocabularySelectionPage(TreePages.TreeSubPage[_HP], Generic[_HP]):
 
         # Create the page
         page = menu_treer.create_subpage(parent, sticky=sticky, back=back, home=home)
-        self.__dict__.update(page.__dict__)
 
-        frame = self.frame()
+        frame = page.frame()
 
         # Load the sets
         question_sets = QuestionSet.load_all()
@@ -52,27 +51,22 @@ class VocabularySelectionPage(TreePages.TreeSubPage[_HP], Generic[_HP]):
         ttk.Label(frame, text="Vocabulary Sets:").grid(column=0, row=0, pady=PADDING)
 
         # Scrollable frame for the buttons
-        canvas = tk.Canvas(frame)
-        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=canvas.yview) # type: ignore
-        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame_area = ttk.Frame(frame)
+        scrollable_frame_area.grid(column=0, row=1, sticky="NSEW")
+
+        frame.rowconfigure(1, weight=1)
+
+
+        scrollbar_page = ScrollablePage(scrollable_frame_area)
+
+        scrollbar_page.display_page()
+        scrollable_frame = scrollbar_page.frame()
+
+        # Buttons for each set
 
         scrollable_frame.columnconfigure(0, weight=1)
 
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(
-                scrollregion=canvas.bbox("all")
-            )
-        )
-
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-
-        canvas.grid(column=0, row=1, sticky="NSEW")
-        scrollbar.grid(column=1, row=1, sticky="NS")
-        frame.rowconfigure(1, weight=1)
-
-        # Buttons for each set
         for idx, qset_name in enumerate(sorted(self.sets.keys())):
             (qset, path) = self.sets[qset_name]
 
@@ -80,11 +74,20 @@ class VocabularySelectionPage(TreePages.TreeSubPage[_HP], Generic[_HP]):
             p = TreePath(path.indices)
 
             btn = ttk.Button(scrollable_frame, text=qset_name, command = lambda p=p: selection_state.select_all_callback(p))
-            btn.grid(column=0, row=idx, pady=(0, PADDING), sticky="EW")
+            # Center the button within the full-width grid cell.
+            btn.grid(column=0, row=idx, pady=(0, PADDING))
 
             selection_buttons.stylify_button(
                 btn,
                 selection_state,
                 p,
             )
+        
+        page_with_select_all = selection_buttons.HeaderedWithSelectAll(
+            page,
+            selection_state,
+            self._path,
+        )
+
+        self.__dict__.update(page_with_select_all.__dict__)
 
