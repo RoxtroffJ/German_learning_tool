@@ -57,6 +57,11 @@ class TreePages(Generic[_HP, _RT]):
         """Returns the root page with its precise type `_RT`."""
         return self._root
 
+    @property
+    def page_switcher(self):
+        """Returns the underlying PageSwitcher."""
+        return self._page_switcher
+
     class TreeSubPage(HeaderedPage[Any], Generic[_HP2]):
         """A subpage created by TreePages."""
         @overload
@@ -101,6 +106,9 @@ class TreePages(Generic[_HP, _RT]):
                 page_maker: Callable[[tk.Misc, str], HeaderedPage[_P2]] | None = None
         ):
             
+            self.back_confirm = back_confirm
+            self.home_confirm = home_confirm
+
             if sticky is None:
                 sticky = tree_page._sticky
 
@@ -118,7 +126,7 @@ class TreePages(Generic[_HP, _RT]):
             if back:
 
                 def callback():
-                    if back_confirm is None or back_confirm():
+                    if self.back_confirm is None or self.back_confirm():
                         tree_page._page_switcher.show_page(parent)
 
                 # Back button to parent
@@ -130,7 +138,7 @@ class TreePages(Generic[_HP, _RT]):
             if home:
                 # Home button to root
                 def callback():
-                    if home_confirm is None or home_confirm():
+                    if self.home_confirm is None or self.home_confirm():
                         tree_page._page_switcher.show_page(tree_page._root)
 
                 home_button = ttk.Button(header_frame, text="Home", command=callback)

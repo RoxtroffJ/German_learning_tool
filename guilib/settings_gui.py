@@ -41,6 +41,9 @@ def settings_tree_page(
             return False
         if result:
             settings.save()
+        else:
+            settings.restore()
+            apply_settings(settings)
         return True
 
     # Create the page

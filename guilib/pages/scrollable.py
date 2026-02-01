@@ -33,26 +33,22 @@ class ScrollablePage(Page):
         # Resize canvas and content (scrollable frame) to mimic sticky behavior for scrollable frame
         # Horizontal resizing
 
-        def _on_content_configure(event: Any) -> None:
-                canvas.config(width=self.__scrollable_frame.winfo_reqwidth())
-        
-        self.__scrollable_frame.bind("<Configure>", _on_content_configure, add="+")
-        
+        def _on_content_configure_x(event: Any) -> None:
+            canvas.config(width=self.__scrollable_frame.winfo_reqwidth())
+        self.__scrollable_frame.bind("<Configure>", _on_content_configure_x, add="+")
+        def _on_content_configure_y(event: Any) -> None:
+            canvas.config(height=self.__scrollable_frame.winfo_reqheight())
+        self.__scrollable_frame.bind("<Configure>", _on_content_configure_y, add="+")
 
-        if "e" in sticky.lower() and "w" in sticky.lower():
-            # Canvas expands horizontally, content takes width of canvas
-            def _on_canvas_configure(event: Any) -> None:
-                canvas.itemconfig(self._window, width=canvas.winfo_width())
-            canvas.bind("<Configure>", _on_canvas_configure, add="+")
-        else:
-            pass
-            # Content takes its natural width, canvas resizes to content width
+ 
+        def _on_canvas_configure_x(event: Any) -> None:
+            canvas.itemconfig(self._window, width=canvas.winfo_width())
+        canvas.bind("<Configure>", _on_canvas_configure_x, add="+")
+
 
         
         # Vertical resizing
-        def _on_canvas_configure(event: Any) -> None:
-            canvas.config(height=self.__scrollable_frame.winfo_reqheight())
-        self.__scrollable_frame.bind("<Configure>", _on_canvas_configure, add="+")
+        
         
         # keep canvas scrollregion in sync with contents
         def _on_configure(event: Any) -> None:

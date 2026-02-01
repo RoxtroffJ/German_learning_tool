@@ -32,12 +32,24 @@ class _QuestionData:
         self.question = question
         self.answer = answer
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, _QuestionData):
+            return False
+        return self.question == other.question and self.answer == other.answer
+
 class _QuestionScore:
     """Internal data structure for vocabulary question score storage."""
     def __init__(self, total: int = 0, correct: int = 0, streak: int = 0):
         self.correct = correct
         self.total = total
         self.streak = streak
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, _QuestionScore):
+            return False
+        return (self.total == other.total and
+                self.correct == other.correct and
+                self.streak == other.streak)
 
 class _VocabularyFile:
     """Handles loading and saving of vocabulary files."""
@@ -46,10 +58,10 @@ class _VocabularyFile:
     def _filepath_for_name(name: str) -> Path:
         return VOC_FOLDER / f"{name}.voc"
     
-    def __init__(self, name: str, questions: list[_QuestionData] = []):
+    def __init__(self, name: str, questions: list[_QuestionData] | None = None):
         self.__name = name
         self.__filepath = self._filepath_for_name(name)
-        self.questions: list[_QuestionData] = questions
+        self.questions: list[_QuestionData] = questions if questions is not None else []
 
 
     @classmethod
@@ -77,7 +89,6 @@ class _VocabularyFile:
             
             question = parts[0]
             answer = parts[1]
-            
 
             data = _QuestionData(question, answer)
             vocab_file.questions.append(data)
@@ -90,7 +101,10 @@ class _VocabularyFile:
         # Renames if needed
         new_filepath = self._filepath_for_name(self.__name)
         if new_filepath != self.__filepath:
-            self.__filepath.rename(new_filepath)
+            try:
+                self.__filepath.rename(new_filepath)
+            except Exception as e:
+                print(f"Warning: could not rename {self.__filepath} -> {new_filepath}: {e}")
             self.__filepath = new_filepath
 
         with open(self.__filepath, "w", encoding="utf-8") as f:
@@ -106,8 +120,19 @@ class _VocabularyFile:
         except Exception as e:
             print(f"Error loading vocabulary file for comparison: {e}")
             return False
-        
         return self == saved_file
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, _VocabularyFile):
+            return False
+        if self.__name != other.__name:
+            return False
+        if len(self.questions) != len(other.questions):
+            return False
+        for a, b in zip(self.questions, other.questions):
+            if a != b:
+                return False
+        return True
 
     @property
     def name(self) -> str:
@@ -126,10 +151,10 @@ class _VocabularyScoreFile:
     def _filepath_for_name(name: str) -> Path:
         return VOC_SCORES_FOLDER / f"{name}.voc_score"
     
-    def __init__(self, name: str, scores: list[_QuestionScore] = []):
+    def __init__(self, name: str, scores: list[_QuestionScore] | None = None):
         self.__name = name
         self.__filepath = self._filepath_for_name(name)
-        self.scores: list[_QuestionScore] = scores
+        self.scores: list[_QuestionScore] = scores if scores is not None else []
     
     @classmethod
     def load(cls, name: str) -> "_VocabularyScoreFile":
@@ -151,6 +176,7 @@ class _VocabularyScoreFile:
             raise ValueError(f"Unsupported vocabulary score file version: {version}")
         
         for line in lines[1:]:
+            line = line.strip()
             # Each line is 3 16 bits binary integers: total, correct, streak with no separator
             if len(line) != 6:
                 print(f"Warning: skipping malformed line in {filepath}: {line}")
@@ -170,7 +196,10 @@ class _VocabularyScoreFile:
         # Renames if needed
         new_filepath = self._filepath_for_name(self.__name)
         if new_filepath != self.__filepath:
-            self.__filepath.rename(new_filepath)
+            try:
+                self.__filepath.rename(new_filepath)
+            except Exception as e:
+                print(f"Warning: could not rename {self.__filepath} -> {new_filepath}: {e}")
             self.__filepath = new_filepath
 
         with open(self.__filepath, "wb") as f:
@@ -179,7 +208,8 @@ class _VocabularyScoreFile:
                 total_bytes = s.total.to_bytes(2, byteorder="big")
                 correct_bytes = s.correct.to_bytes(2, byteorder="big")
                 streak_bytes = s.streak.to_bytes(2, byteorder="big")
-                f.write(total_bytes + correct_bytes + streak_bytes)
+                # write each record followed by newline to make files easier to parse
+                f.write(total_bytes + correct_bytes + streak_bytes + b"\n")
 
     def check_saved(self) -> bool:
         """Checks if the current in-memory scores match the saved file."""
@@ -188,8 +218,19 @@ class _VocabularyScoreFile:
         except Exception as e:
             print(f"Error loading vocabulary score file for comparison: {e}")
             return False
-        
         return self == saved_file
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, _VocabularyScoreFile):
+            return False
+        if self.__name != other.__name:
+            return False
+        if len(self.scores) != len(other.scores):
+            return False
+        for a, b in zip(self.scores, other.scores):
+            if a != b:
+                return False
+        return True
 
     @property
     def name(self) -> str:
@@ -201,10 +242,11 @@ class _VocabularyScoreFile:
         """Renames the vocabulary score file."""
         self.__name = new_name
 
+
 class Question:
     """Represents a single vocabulary question."""
-    def __init__(self, data: _QuestionData, score: _QuestionScore | None = None):
-        self._data = data
+    def __init__(self, data: _QuestionData | None = None, score: _QuestionScore | None = None):
+        self._data = data if data is not None else _QuestionData("", "")
         self._score = score if score is not None else _QuestionScore()
     
 
@@ -240,6 +282,10 @@ class QuestionSet:
         # Ensure scores list matches questions list
         while len(self._score_file.scores) < len(self._vocab_file.questions):
             self._score_file.scores.append(_QuestionScore())
+        
+        # Save scores if needed
+        if not self._score_file.check_saved():
+            self._score_file.save()
         
     @property
     def questions(self) -> list[Question]:
