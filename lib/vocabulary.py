@@ -47,16 +47,17 @@ class _VocabularyFile:
         return VOC_FOLDER / f"{name}.voc"
     
     def __init__(self, name: str, questions: list[_QuestionData] = []):
-        self.filepath = self._filepath_for_name(name)
+        self.__name = name
+        self.__filepath = self._filepath_for_name(name)
         self.questions: list[_QuestionData] = questions
 
 
     @classmethod
     def load(cls, name: str) -> "_VocabularyFile":
         """Loads a vocabulary file."""
-        
+
         vocab_file = cls(name)
-        filepath = vocab_file.filepath
+        filepath = vocab_file.__filepath
 
         with open(filepath, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -85,11 +86,38 @@ class _VocabularyFile:
     
     def save(self):
         """Saves the vocabulary file to its filepath."""
-        with open(self.filepath, "w", encoding="utf-8") as f:
+
+        # Renames if needed
+        new_filepath = self._filepath_for_name(self.__name)
+        if new_filepath != self.__filepath:
+            self.__filepath.rename(new_filepath)
+            self.__filepath = new_filepath
+
+        with open(self.__filepath, "w", encoding="utf-8") as f:
             f.write("0\n")  # version
             for q in self.questions:
                 line = f"{q.question}\t{q.answer}\n"
                 f.write(line)
+
+    def check_saved(self) -> bool:
+        """Checks if the current in-memory questions match the saved file."""
+        try:
+            saved_file = _VocabularyFile.load(self.__name)
+        except Exception as e:
+            print(f"Error loading vocabulary file for comparison: {e}")
+            return False
+        
+        return self == saved_file
+
+    @property
+    def name(self) -> str:
+        """Returns the name of the vocabulary file."""
+        return self.__name
+    
+    @name.setter
+    def name(self, new_name: str):
+        """Renames the vocabulary file."""
+        self.__name = new_name
 
 class _VocabularyScoreFile:
     """Handles loading and saving of vocabulary score files."""
@@ -99,7 +127,8 @@ class _VocabularyScoreFile:
         return VOC_SCORES_FOLDER / f"{name}.voc_score"
     
     def __init__(self, name: str, scores: list[_QuestionScore] = []):
-        self.filepath = self._filepath_for_name(name)
+        self.__name = name
+        self.__filepath = self._filepath_for_name(name)
         self.scores: list[_QuestionScore] = scores
     
     @classmethod
@@ -107,7 +136,7 @@ class _VocabularyScoreFile:
         """Loads a vocabulary score file."""
         
         score_file = cls(name)
-        filepath = score_file.filepath
+        filepath = score_file.__filepath
 
         # Binary files encoding with version header
 
@@ -138,7 +167,13 @@ class _VocabularyScoreFile:
     
     def save(self):
         """Saves the vocabulary score file to its filepath."""
-        with open(self.filepath, "wb") as f:
+        # Renames if needed
+        new_filepath = self._filepath_for_name(self.__name)
+        if new_filepath != self.__filepath:
+            self.__filepath.rename(new_filepath)
+            self.__filepath = new_filepath
+
+        with open(self.__filepath, "wb") as f:
             f.write(b"0\n")  # version
             for s in self.scores:
                 total_bytes = s.total.to_bytes(2, byteorder="big")
@@ -146,7 +181,25 @@ class _VocabularyScoreFile:
                 streak_bytes = s.streak.to_bytes(2, byteorder="big")
                 f.write(total_bytes + correct_bytes + streak_bytes)
 
+    def check_saved(self) -> bool:
+        """Checks if the current in-memory scores match the saved file."""
+        try:
+            saved_file = _VocabularyScoreFile.load(self.__name)
+        except Exception as e:
+            print(f"Error loading vocabulary score file for comparison: {e}")
+            return False
+        
+        return self == saved_file
 
+    @property
+    def name(self) -> str:
+        """Returns the name of the vocabulary score file."""
+        return self.__name
+    
+    @name.setter
+    def name(self, new_name: str):
+        """Renames the vocabulary score file."""
+        self.__name = new_name
 
 class Question:
     """Represents a single vocabulary question."""
@@ -159,6 +212,22 @@ class Question:
         """Adds this question to the given vocabulary and score files."""
         voc_file.questions.append(self._data)
         score_file.scores.append(self._score)
+
+    @property
+    def question(self) -> str:
+        """Returns the question string."""
+        return self._data.question
+    
+    @property
+    def answer(self) -> str:
+        """Returns the answer string."""
+        return self._data.answer
+
+    def reset_with(self, question: str, answer: str):
+        """Resets the question and answer strings, as well as score in place."""
+        self._data.question = question
+        self._data.answer = answer
+        self._score = _QuestionScore()
 
 class QuestionSet:
     """Represents a set of vocabulary questions with their scores."""
@@ -185,6 +254,13 @@ class QuestionSet:
         """Returns the name"""
         return self._name
 
+    @name.setter
+    def name(self, new_name: str):
+        """Sets a new name for the vocabulary set, renaming the underlying files."""
+        self._vocab_file.name = new_name
+        self._score_file.name = new_name
+        self._name = new_name
+
     def add_question(self, question: Question):
         """Adds a new vocabulary question to the set."""
         question.add_to_files(self._vocab_file, self._score_file)
@@ -196,6 +272,11 @@ class QuestionSet:
         
     def restore(self):
         self.__dict__.update(QuestionSet(self._name).__dict__)
+
+    def clear_all_questions(self):
+        """Clears all questions from the set."""
+        self._vocab_file.questions.clear()
+        self._score_file.scores.clear()
 
     @classmethod
     def load_all(cls):
@@ -210,3 +291,7 @@ class QuestionSet:
                 print(f"Error loading vocabulary set from {filepath}: {e}")
                 continue
         return vocab_sets
+    
+    def check_saved(self) -> bool:
+        """Checks if the current in-memory set matches the saved file."""
+        return self._vocab_file.check_saved() and self._score_file.check_saved()

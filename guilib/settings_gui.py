@@ -46,7 +46,7 @@ def settings_tree_page(
     # Create the page
     page = menu_treer.create_subpage(parent, sticky=sticky, back=back, home=home, back_confirm=exit_confirm, home_confirm=exit_confirm, page_maker=page_maker)
 
-    frame = page.frame()
+    frame = page.frame
     _draw_settings_frame(frame, settings)
 
     return page

@@ -9,12 +9,9 @@ class ScrollablePage(Page):
     def __init__(self, root: tk.Misc, sticky: str = "NSEW"):
         Page.__init__(self, root, sticky)
 
-        parent = super().frame()  # the Page full frame
+        parent = super().frame  # the Page full frame
 
         canvas = tk.Canvas(parent, borderwidth=0)
-        
-        # Draw canvas contour red for DEBUG
-        canvas.config(borderwidth=2, relief="groove", highlightbackground="red")
 
         def _yview(*args: Any) -> None:
             canvas.yview(*args) # type: ignore
@@ -37,42 +34,48 @@ class ScrollablePage(Page):
         # Horizontal resizing
 
         def _on_content_configure(event: Any) -> None:
-                print("Canvas horizontal fit")
                 canvas.config(width=self.__scrollable_frame.winfo_reqwidth())
         
         self.__scrollable_frame.bind("<Configure>", _on_content_configure, add="+")
         
 
         if "e" in sticky.lower() and "w" in sticky.lower():
-            print("ScrollablePage: horizontal stretch")
             # Canvas expands horizontally, content takes width of canvas
             def _on_canvas_configure(event: Any) -> None:
-                print("Frame horizontal stretch")
                 canvas.itemconfig(self._window, width=canvas.winfo_width())
             canvas.bind("<Configure>", _on_canvas_configure, add="+")
         else:
-            print("ScrollablePage: horizontal natural")
+            pass
             # Content takes its natural width, canvas resizes to content width
 
         
         # Vertical resizing
-        if "n" in sticky.lower() and "s" in sticky.lower():
-            print("ScrollablePage: vertical stretch")
-            # Canvas expands vertically, content keeps its natural height -> Nothing to do
-            pass
-            
-        else:
-            print("ScrollablePage: vertical natural")
-            def _on_canvas_configure(event: Any) -> None:
-                print("Canvas vertical fit")
-                canvas.config(height=self.__scrollable_frame.winfo_reqheight())
-            self.__scrollable_frame.bind("<Configure>", _on_canvas_configure, add="+")
+        def _on_canvas_configure(event: Any) -> None:
+            canvas.config(height=self.__scrollable_frame.winfo_reqheight())
+        self.__scrollable_frame.bind("<Configure>", _on_canvas_configure, add="+")
+        
         # keep canvas scrollregion in sync with contents
         def _on_configure(event: Any) -> None:
             canvas.configure(scrollregion=canvas.bbox("all"))
 
         self.__scrollable_frame.bind("<Configure>", _on_configure, add="+")
         canvas.bind("<Configure>", _on_configure, add="+")
+
+        # # DEBUG: print sizes
+        # def _print_sizes(event: Any) -> None:
+
+        #     if "e" in sticky.lower() and "w" in sticky.lower():
+        #         print(f"(H stretch) ", end="")
+        #     else:
+        #         print(f"(H fixed) ", end="")
+        #     if "n" in sticky.lower() and "s" in sticky.lower():
+        #         print(f"(V stretch) ", end="")
+        #     else:
+        #         print(f"(V fixed) ", end="")
+
+        #     print(f"canvas: {canvas.winfo_width()}x{canvas.winfo_height()}, content: {self.__scrollable_frame.winfo_width()}x{self.__scrollable_frame.winfo_height()}, request: {canvas.winfo_reqwidth()}x{canvas.winfo_reqheight()}")
+        # canvas.bind("<Configure>", _print_sizes, add="+") 
+        # self.__scrollable_frame.bind("<Configure>", _print_sizes, add="+")
 
         # ----- scrolling handlers -----
         # mouse / touch wheel
@@ -130,7 +133,7 @@ class ScrollablePage(Page):
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
         canvas.bind_all("<Button-4>", _on_mousewheel)
         canvas.bind_all("<Button-5>", _on_mousewheel)
-
+    @property
     def frame(self):
         """Return the inner scrollable frame so callers draw into it."""
         return self.__scrollable_frame

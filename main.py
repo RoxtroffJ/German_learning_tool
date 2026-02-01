@@ -36,7 +36,7 @@ def menu_page_maker(root: tk.Misc, sticky: str):
 	footer_frame.columnconfigure(0, weight=1)
 
 	start_button = ttk.Button(footer_frame)
-	start_button.grid(column=0, row=0, pady=PADDING)
+	start_button.grid(column=0, row=0, pady=PADDING, padx=PADDING, sticky="EW")
 
 	def formatter(selected: bool, nb_selected: int) -> str:
 		if nb_selected == 0:
@@ -64,7 +64,7 @@ menu_treer = TreePages(menu_pager, sticky="")
 # Pages
 
 menu_page = menu_treer.get_root()
-menu_frame = menu_page.frame()
+menu_frame = menu_page.frame
 
 
 vocab_page = vocabulary_gui.VocabularySelectionPage(
@@ -75,7 +75,7 @@ vocab_page = vocabulary_gui.VocabularySelectionPage(
 )
 
 grammar_page = menu_treer.create_subpage(menu_page, home=True)
-grammar_frame = grammar_page.frame()
+grammar_frame = grammar_page.frame
 grammar_frame.columnconfigure(0, weight=1)
 
 settings_page = settings_gui.settings_tree_page(settings_gui.load_settings(), menu_treer, menu_page, home=True, page_maker=no_foot_page_maker)
@@ -92,9 +92,14 @@ def show_settings():
 
 # Menu contents
 ttk.Label(menu_frame, text="Choose an activity:").grid(column=0, row=0, pady=PADDING)
-ttk.Button(menu_frame, text="Vocabulary Practice", command=show_vocab).grid(column=0, row=1, pady=PADDING, sticky="ew")
-ttk.Button(menu_frame, text="Grammar Exercises", command=show_grammar).grid(column=0, row=2, pady=PADDING, sticky="ew")
-ttk.Button(menu_frame, text="Exit", command=main.quit).grid(column=0, row=4, pady=PADDING, sticky="ew")
+voc_button = ttk.Button(menu_frame, text="Vocabulary Practice", command=show_vocab)
+voc_button.grid(column=0, row=1, padx=PADDING, pady=PADDING, sticky="ew")
+voc_select_all = vocab_page.select_all_button(menu_frame)
+voc_select_all.grid(column=1, row=1, padx=PADDING, pady=PADDING, sticky="ew")
+
+ttk.Button(menu_frame, text="Grammar Exercises", command=show_grammar).grid(column=0, row=2, padx=PADDING, pady=PADDING, sticky="ew")
+
+selection_buttons.select_all_button(menu_frame, selection_state, Path([])).grid(column=0, row=3, columnspan=2, padx=PADDING, pady=PADDING, sticky="ew")
 
 # Menu header
 menu_header = menu_page.header_frame()

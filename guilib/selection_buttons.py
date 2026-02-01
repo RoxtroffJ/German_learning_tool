@@ -29,29 +29,44 @@ def stylify_button(btn: ttk.Button, state: TreeSelectionState, path: Path, label
 
 _HP = TypeVar("_HP", bound=HeaderedPage[Any], covariant=True)
 
+def select_all_button(root: tk.Misc, tree_selection_state: TreeSelectionState, select_all_path: Path) -> ttk.Button:
+    """Creates a 'Select All' button linked to the given selection state and path."""
+    button = ttk.Button(
+        root,
+        text="Select All",
+        command=lambda: tree_selection_state.select_all_callback(select_all_path)
+    )
+    stylify_button(
+        button,
+        tree_selection_state,
+        select_all_path,
+        label_format=lambda selected, nb_selected: f"Select All" + (f" ({nb_selected} selected)" if nb_selected > 0 else "")
+    )
+    return button
+
+def deselect_all_button(root: tk.Misc, tree_selection_state: TreeSelectionState, select_all_path: Path) -> ttk.Button:
+    """Creates a 'Deselect All' button linked to the given selection state and path."""
+    button = ttk.Button(
+        root,
+        text="Deselect All",
+        command=lambda: tree_selection_state.deselect_all_callback(select_all_path)
+    )
+    return button
+
 class HeaderedWithSelectAll(Generic[_HP], HeaderedPage[Any]):
     """A HeaderedPage with a select all button in the header."""
 
     def __init__(self, page: _HP, tree_selection_state: TreeSelectionState, select_all_path: Path, header_sticky: str | None = None):
         """Creates a HeaderedWithSelectAll page wrapping the given page."""
-        
         self.__dict__.update(page.__dict__)
         self.__header_sticky = header_sticky or page.header_sticky
 
         header_frame = page.header_frame()
         header_frame.columnconfigure(0, weight=1)
 
-        select_all_button = ttk.Button(header_frame, text="Select All", command=lambda: tree_selection_state.select_all_callback(select_all_path))
-        select_all_button.grid(column=1, row=0, padx=PADDING, sticky="E")
+        select_all_button(header_frame, tree_selection_state, select_all_path).grid(column=1, row=0, padx=PADDING, sticky="E")
 
-        deselect_all_button = ttk.Button(header_frame, text="Deselect All", command=lambda: tree_selection_state.deselect_all_callback(select_all_path))
-        deselect_all_button.grid(column=2, row=0, padx=(0, PADDING), sticky="E")
-
-        stylify_button(
-            select_all_button,
-            tree_selection_state,
-            select_all_path,
-        )
+        deselect_all_button(header_frame, tree_selection_state, select_all_path).grid(column=2, row=0, padx=(0, PADDING), sticky="E")
 
         self.__sub_header_frame = ttk.Frame(header_frame)
         self.__sub_header_frame.grid(column=0, row=0, sticky=self.__header_sticky)
@@ -63,4 +78,3 @@ class HeaderedWithSelectAll(Generic[_HP], HeaderedPage[Any]):
     
     def header_frame(self):
         return self.__sub_header_frame
-        
