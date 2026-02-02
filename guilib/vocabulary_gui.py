@@ -9,7 +9,7 @@ from guilib import selection_buttons
 from guilib.pages import ScrollablePage, HeaderedPage, Page, TreePages
 from guilib.tree_selection_state import TreeSelectionState
 
-from guilib.pages.question_gui import QuestionDrawer as QD
+from guilib.question_gui import CallOnce, QuestionDrawer as QD, ToQuestionDrawer
 
 from tree import Path as TreePath
 
@@ -19,7 +19,7 @@ _HP = TypeVar("_HP", bound=HeaderedPage[Any], covariant=True)
 
 _DELETE_BUTTON_WIDTH = 2
 
-class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.TreeSubPage[_HP]], Generic[_HP]):
+class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.TreeSubPage[_HP]], Generic[_HP], ToQuestionDrawer):
     """A page to select the vocabulary questions sets."""
         
     def __init__(
@@ -334,9 +334,9 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
             self._path
         )
 
-    def to_question_drawers(self) -> list["QuestionDrawer"]:
+    def to_question_drawers(self) -> list[QD]:
         """Returns a list of QuestionDrawers for all selected sets."""
-        question_drawers: list[QuestionDrawer] = []
+        question_drawers: list[QD] = []
         for path in self.__selected:
             if path in self.sets:
                 qset = self.sets[path]
@@ -355,7 +355,7 @@ class SetPage(Page):
     class Row(ttk.Frame):
         """A row displaying a question-answer pair."""
         
-        def __init__(self, parent: tk.Misc, question: lvoc.Question, editable: tk.BooleanVar, on_delete: Callable[[], None]):
+        def __init__(self, parent: tk.Misc, question: lvoc.Question, editable: tk.BooleanVar, on_delete: Callable[[], None] | None = None):
             super().__init__(parent)
             
             self._on_delete = on_delete
@@ -374,13 +374,25 @@ class SetPage(Page):
 
             self._editable_var = editable
 
-            self._question_entry = ttk.Entry(self, textvariable=self._question_var)
-            self._question_entry.grid(column=0, row=0, sticky="EW", padx=PADDING, pady=PADDING)
-            self._answer_entry = ttk.Entry(self, textvariable=self._answer_var)
-            self._answer_entry.grid(column=1, row=0, sticky="EW", padx=PADDING, pady=PADDING)
-            
-            self._delete_button = ttk.Button(self, text="✕", width=_DELETE_BUTTON_WIDTH, command=self.delete_row)
+            question_frame = ttk.Frame(self)
+            self._question_entry = ttk.Entry(question_frame, textvariable=self._question_var)
+            self._question_entry.grid(column=1, row=0, sticky="EW", padx=PADDING, pady=PADDING)
+            ttk.Label(question_frame, text="Q:").grid(column=0, row=0, padx=PADDING, pady=PADDING)
 
+
+            answer_frame = ttk.Frame(self)
+            self._answer_entry = ttk.Entry(answer_frame, textvariable=self._answer_var)
+            self._answer_entry.grid(column=1, row=0, sticky="EW", padx=PADDING, pady=PADDING)
+            ttk.Label(answer_frame, text="A:").grid(column=0, row=0, padx=PADDING, pady=PADDING)
+
+            question_frame.grid(column=1, row=0, sticky="EW")
+            answer_frame.grid(column=0, row=0, sticky="EW")
+
+            if self._on_delete is not None:
+                self._delete_button = ttk.Button(self, text="✕", width=_DELETE_BUTTON_WIDTH, command=self.delete_row)
+            else:
+                self._delete_button = None
+            
             self._editable_var.trace_add("write", lambda a,b,c: self.make_editable(self._editable_var.get()))
             self.make_editable(self._editable_var.get())
 
@@ -390,14 +402,16 @@ class SetPage(Page):
             self._question_entry.config(state=state)
             self._answer_entry.config(state=state)
 
-            if editable:
-                self._delete_button.grid(column=2, row=0, padx=PADDING, pady=PADDING)
-            else:
-                self._delete_button.grid_forget()
+            if self._delete_button is not None:
+                if editable:
+                    self._delete_button.grid(column=2, row=0, padx=PADDING, pady=PADDING)
+                else:
+                    self._delete_button.grid_forget()
         
         def delete_row(self):
             """Deletes this row."""
-            self._on_delete()
+            if self._on_delete is not None:
+                self._on_delete()
             self.destroy()
 
     def __init__(
@@ -598,7 +612,6 @@ class QuestionDrawer(QD):
         super().__init__()
         self._question_idx = question_idx
         self._question_set = question_set
-        self._answered = False
 
     def get_probability(self) -> float:
         """Returns the probability as a float."""
@@ -606,7 +619,7 @@ class QuestionDrawer(QD):
 
         return 1 / (score + 1)
     
-    def draw(self, root: tk.Misc, on_answered: Callable[[], None] | None = None, on_deleted: Callable[[], None] | None = None) -> None:
+    def draw(self, root: tk.Misc, on_answered: CallOnce) -> None:
         """Draws the question on the given root widget. 
         When the question is answered, the `on_answered` callback should be called, and the probability updated (and saved).
         When the question is deleted, the `on_deleted` callback should be called. This ensures the question is not displayed anymore.
@@ -650,6 +663,12 @@ class QuestionDrawer(QD):
         def clear_result_frame():
             for w in result_frame.winfo_children():
                 w.destroy()
+
+        submit_btn = ttk.Button(root, text="Submit")
+        submit_btn.grid(padx=PADDING, pady=PADDING)
+
+        # Allow pressing Enter to submit
+        answer_entry.bind("<Return>", lambda e: handle_submit())
 
         def handle_submit():
             given = entry_var.get().strip()
@@ -698,25 +717,18 @@ class QuestionDrawer(QD):
             do_save()
 
             # Disable entry
-            answer_entry.config(state="disabled")
+            answer_entry.config(state="readonly")
 
             # Add edit button
 
             edit_btn = ttk.Button(question_frame)
-            edit_btn.grid(column=0, row=1, padx=PADDING, pady=PADDING)
+            edit_btn.grid(column=1, row=0, padx=PADDING, pady=PADDING)
 
-            def edit_callback():
-                def on_deleted():
-                    self._question_set.delete_question(self._question_idx)
-                    do_save()
-                    if on_deleted is not None:
-                        on_deleted()
-                
+            def edit_callback(): 
                 row = SetPage.Row(
                     question_frame,
                     question,
-                    tk.BooleanVar(value=True),
-                    on_deleted
+                    tk.BooleanVar(value=True)
                 )
                 row.grid(column=0, row=0, sticky="EW")
 
@@ -727,16 +739,14 @@ class QuestionDrawer(QD):
                 edit_btn.config(text="Confirm", command=confirm_callback)
             edit_btn.config(text="Edit", command=edit_callback)
 
+            # Remove submit button
+            submit_btn.destroy()
+
             # Call on_answered callback after updating
-            if on_answered is not None:
+            if on_answered:
                 on_answered()
 
-
-        submit_btn = ttk.Button(root, text="Submit", command=handle_submit)
-        submit_btn.grid(padx=PADDING, pady=PADDING)
-
-        # Allow pressing Enter to submit
-        answer_entry.bind("<Return>", lambda e: handle_submit())
+        submit_btn.config(command=handle_submit)
 
         # Give focus to entry
         answer_entry.focus_set()

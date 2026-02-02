@@ -14,12 +14,18 @@ import guilib.settings_gui as settings_gui
 import guilib.vocabulary_gui as vocabulary_gui
 from guilib.tree_selection_state import TreeSelectionState
 import guilib.selection_buttons as selection_buttons
-from tree import Path
+from guilib.question_gui import QuestionDrawer, QuestionnerPage, ToQuestionDrawer
 
+from tree import Path
 
 main, settings = init_gui()
 
 selection_state = TreeSelectionState()
+
+to_question_drawer_list: list[ToQuestionDrawer] = []
+menu_pager = None
+menu_treer = None
+menu_page = None
 
 def no_foot_page_maker(root: tk.Misc, sticky: str):
 	page = Page(root, sticky)
@@ -35,7 +41,45 @@ def menu_page_maker(root: tk.Misc, sticky: str):
 	footer_frame = footer_page.footer_frame()
 	footer_frame.columnconfigure(0, weight=1)
 
-	start_button = ttk.Button(footer_frame)
+	def callback():
+		if menu_pager is not None:
+			mper = menu_pager
+		else:
+			return
+		if menu_treer is not None:
+			mt = menu_treer
+		else:
+			return
+		if menu_page is not None:
+			mp = menu_page
+		else:
+			return
+		
+		question_drawers: list[QuestionDrawer] = []
+		for to_qd in to_question_drawer_list:
+			question_drawers.extend(to_qd.to_question_drawers())
+		if len(question_drawers) == 0:
+			return
+
+		def empty_callback():
+			mper.show_page(mp)
+		
+		def pager(root: tk.Misc, sticky: str):
+			page = QuestionnerPage(
+				root, 
+				sticky, 
+				question_list=question_drawers, 
+				empty_callback=empty_callback
+			)
+			return HeaderedPage(page)
+
+		question_page = mt.create_subpage(
+			mp,
+			page_maker=pager
+		)
+		mper.show_page(question_page)
+
+	start_button = ttk.Button(footer_frame, command=callback)
 	start_button.grid(column=0, row=0, pady=PADDING, padx=PADDING, sticky="EW")
 
 	def formatter(selected: bool, nb_selected: int) -> str:
@@ -59,7 +103,7 @@ def menu_page_maker(root: tk.Misc, sticky: str):
 	return header_footer_page
 
 menu_pager = PageSwitcher(main, page_maker=menu_page_maker)
-menu_treer = TreePages(menu_pager, sticky="")
+menu_treer = TreePages(menu_pager, sticky="NSEW")
 
 # Pages
 
@@ -71,8 +115,10 @@ vocab_page = vocabulary_gui.VocabularySelectionPage(
 	menu_treer,
 	menu_page,
 	selection_state,
-	Path([])
+	Path([]),
+	no_go_page_maker=no_foot_page_maker
 )
+to_question_drawer_list.append(vocab_page)
 
 grammar_page = menu_treer.create_subpage(menu_page, home=True)
 grammar_frame = grammar_page.frame
@@ -82,13 +128,16 @@ settings_page = settings_gui.settings_tree_page(settings_gui.load_settings(), me
 
 # Functions to switch between frames
 def show_vocab():
-	menu_pager.show_page(vocab_page)
+	if menu_pager is not None:
+		menu_pager.show_page(vocab_page)
 
 def show_grammar():
-	menu_pager.show_page(grammar_page)
+	if menu_pager is not None:
+		menu_pager.show_page(grammar_page)
 
 def show_settings():
-	menu_pager.show_page(settings_page)
+	if menu_pager is not None:
+		menu_pager.show_page(settings_page)
 
 # Menu contents
 ttk.Label(menu_frame, text="Choose an activity:").grid(column=0, row=0, pady=PADDING)

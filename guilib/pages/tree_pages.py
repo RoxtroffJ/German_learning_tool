@@ -47,7 +47,12 @@ class TreePages(Generic[_HP, _RT]):
         # runtime implementation compatible with the overloads: return instance of `cls` (type S)
         return cast(_S, object.__new__(cast(Type[object], cls)))
 
-    def __init__(self, page_switcher: PageSwitcher[HeaderedPage[_P]], *, sticky: str = "NSEW", root_page_maker: Callable[[tk.Misc, str], _RT] | None = None):
+    def __init__(
+            self, 
+            page_switcher: PageSwitcher[HeaderedPage[_P]], *, 
+            sticky: str = "NSEW", 
+            root_page_maker: Callable[[tk.Misc, str], _RT] | None = None
+    ):
         self._page_switcher = page_switcher
 
         self._sticky = sticky
@@ -179,7 +184,7 @@ class TreePages(Generic[_HP, _RT]):
         back: bool = ..., home: bool = ..., 
         back_confirm: Callable[[], bool] | None = ...,
         home_confirm: Callable[[], bool] | None = ...,
-        page_maker: Callable[[tk.Misc, str], HeaderedPage[_HP2]]) -> "TreePages.TreeSubPage[_HP2]": ...
+        page_maker: Callable[[tk.Misc, str], _HP2]) -> "TreePages.TreeSubPage[_HP2]": ...
 
     def create_subpage(
         self, parent: Page, 
@@ -187,7 +192,7 @@ class TreePages(Generic[_HP, _RT]):
         back: bool = True, home: bool = False, 
         back_confirm: Callable[[], bool] | None = None,
         home_confirm: Callable[[], bool] | None = None,
-        page_maker: Callable[[tk.Misc, str], HeaderedPage[_HP2]] | None = None
+        page_maker: Callable[[tk.Misc, str], _HP2] | None = None
     ):
         """
         Creates a subpage of the given parent page.
