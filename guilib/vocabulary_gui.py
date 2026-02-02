@@ -34,6 +34,9 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
         self.__no_go_page_maker = no_go_page_maker
         self.__back = back
         self.__home = home
+        self.__idx = 0
+
+        self.__buttons: dict[TreePath, list[tk.Misc]] = {}
 
         # Register vocabulary section in the selection state
         self._path = selection_state.add_node(parent_path)
@@ -49,7 +52,7 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
         question_sets.sort(key=lambda qs: qs.name)
 
         # Register each set in the selection state
-        self.sets: dict[str, tuple[lvoc.QuestionSet, TreePath]] = {}
+        self.sets: dict[TreePath, lvoc.QuestionSet] = {}
 
         # Label
         frame.columnconfigure(0, weight=1)
@@ -81,8 +84,7 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
         
         # Add set button
         def add_set_callback() -> None:
-            new_set = lvoc.QuestionSet(name="New Set")
-            self.add_set(new_set)
+            self.add_new_set()
         add_set_button = ttk.Button(frame, text="Add New Set", command=add_set_callback)
         add_set_button.grid(column=0, row=2, pady=PADDING)
 
@@ -94,23 +96,24 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
 
         self.__dict__.update(page_with_select_all.__dict__)
 
-    def add_set(self, qset: lvoc.QuestionSet) -> None:
+    def add_set(self, qset: lvoc.QuestionSet, name_var: tk.StringVar | None = None) -> TreePath:
         """Adds a new question set to the selection page."""
-        if qset.name in self.sets:
-            # Replace existing set
-            self.sets[qset.name] = (qset, self.sets[qset.name][1])
-            return
         
         # Register in selection state
         path = self._selection_state.add_node(self._path)
-        self.sets[qset.name] = qset, path
+        
+        self.sets[path] = qset
 
         # Add button to GUI
         button_frame = self.__buttons_frame
 
-        idx = len(self.sets) - 1
+        idx = self.__idx
+        self.__idx += 1
 
         btn = ttk.Button(button_frame, text=qset.name, command = lambda : self._selection_state.select_all_callback(path))
+        if name_var is not None:
+            btn.config(textvariable=name_var)
+        
         # Center the button within the full-width grid cell.
         btn.grid(column=0, row=idx, padx=PADDING, pady=PADDING)
 
@@ -133,6 +136,7 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
             set_page = SetPage(
                 new_page.frame,
                 qset,
+                self.sets,
                 sticky="NSEW",
                 editable=True
             )
@@ -152,7 +156,7 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
                     return False
                 if result:
                     try:
-                        set_page.save()
+                        self._guarded_save(set_page.set, path, set_page.name_var)
                     except ValueError as e:
                         tkmsgbox.showerror(
                             title="Save Error",
@@ -175,8 +179,140 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
         edit_btn = ttk.Button(button_frame, text="Edit", command=__edit_callback)
         edit_btn.grid(column=1, row=idx, pady=PADDING, padx=PADDING)
 
+        delete_btn = ttk.Button(button_frame, text="✕", command=lambda: self.delete_set(path))
+        delete_btn.grid(column=2, row=idx, pady=PADDING, padx=PADDING)
 
+        self.__buttons[path] = [btn, edit_btn, delete_btn]
+        return path
 
+    def add_new_set(self) -> TreePath:
+        """
+        Adds a new empty question set to the selection page.
+        Will automatically show the edit page for the new set, and closing forces saving or deleting the new set.
+        """
+        new_set = lvoc.QuestionSet()
+        name_var = tk.StringVar(value=new_set.name)
+        path = self.add_set(new_set, name_var=name_var)
+        # Build and show edit page
+        new_page = self.__menu_treer.create_subpage(
+            self,
+            sticky="NSEW",
+            back=self.__back,
+            home=self.__home,
+            page_maker=self.__no_go_page_maker
+        )
+        
+        set_page = SetPage(
+            new_page.frame,
+            new_set,
+            self.sets,
+            sticky="NSEW",
+            editable=True,
+            name_var=name_var
+        )
+
+        def exit_confirm() -> bool:
+            if set_page.check_saved():
+                return True
+            
+            try:
+                self._guarded_save(set_page.set, path, set_page.name_var)
+                return True
+            except ValueError as e:
+                result = tkmsgbox.askyesno(
+                    title="Save Error",
+                    message=f"Could not save: {e}",
+                    detail="Delete the new set instead?",
+                    icon="warning",
+                    default=tkmsgbox.NO
+                )
+                if result:
+                    self.delete_set(path, delete_files=False)
+                    return True
+                else:
+                    return False
+
+        new_page.back_confirm = exit_confirm
+        new_page.home_confirm = exit_confirm
+
+        set_page.display_page()
+        self.__menu_treer.page_switcher.show_page(new_page)
+
+        # Finally add the set to the selection page
+        return path
+        
+    def delete_set(self, set_path: TreePath, warn: bool = True, delete_files: bool = False) -> None:
+        if set_path not in self.sets:
+            return
+        
+        set_name = self.sets[set_path].name
+
+        if warn:
+            result = tkmsgbox.askyesno(
+                title="Delete Set",
+                message=f"Delete '{set_name}'?",
+                detail="This action cannot be undone.",
+                icon="warning",
+                default=tkmsgbox.NO
+            )
+            if not result:
+                return
+        if delete_files:
+            self.sets[set_path].delete()
+
+        
+        self._selection_state.delete_node(set_path)
+        del self.sets[set_path]
+        for widget in self.__buttons[set_path]:
+            widget.destroy()
+        del self.__buttons[set_path]
+
+    def _guarded_save(self, set: lvoc.QuestionSet, path: TreePath, name_var: tk.StringVar | None = None):
+        """
+        Checks for name conflicts before saving the given set at path.
+        """
+        class SaveError(Exception):
+            pass
+
+        try:
+            for other_path, other_set in self.sets.items():
+                if other_path != path and other_set.name == set.name:
+                    raise SaveError(f"A set named '{set.name}' already exists.")
+                
+            set.save()
+        except SaveError:
+            # Ask if override or rename
+            result = tkmsgbox.askyesno(
+                title="File Already Exists",
+                message=f"Set '{set.name}' already exists.",
+                detail="Do you want to overwrite it?",
+                icon="warning",
+                default=tkmsgbox.NO
+            )
+            if result:
+                for other_path, other_set in list(self.sets.items()):
+                    if other_path != path and other_set.name == set.name:
+                        self.delete_set(other_path, warn=False, delete_files=True)
+                set.save()
+            else:
+                # Find available name
+                base_name = set.name
+                idx = 1
+                while True:
+                    new_name = f"{base_name} ({idx})"
+                    conflict = False
+                    for other_path, other_set in self.sets.items():
+                        if other_path != path and other_set.name == new_name:
+                            conflict = True
+                            break
+                    if not conflict:
+                        break
+                    idx += 1
+                if name_var is not None:
+                    name_var.set(new_name)
+                set.name = new_name
+                set.save()
+        self.sets[path] = set
 
     def select_all_button(self, root: tk.Misc) -> ttk.Button:
         """Returns the 'Select All' button."""
@@ -237,13 +373,22 @@ class SetPage(Page):
             self._on_delete()
             self.destroy()
 
-    def __init__(self, root: tk.Misc, set: lvoc.QuestionSet, sticky: str = "NSEW", editable: bool = False):
+    def __init__(
+            self, 
+            root: tk.Misc, 
+            set: lvoc.QuestionSet, 
+            sets: dict[TreePath, lvoc.QuestionSet],
+            sticky: str = "NSEW", 
+            editable: bool = False, 
+            name_var: tk.StringVar | None = None
+    ):
         super().__init__(root, sticky)
         self.editable = tk.BooleanVar(value=editable)
         
         self.__set = set
+        self.__sets = sets
 
-        self.name_var = tk.StringVar(value=set.name)
+        self.name_var = name_var or tk.StringVar(value=set.name)
         def _callback(a: str, b: str, c: str) -> None:
             self.__set.name = self.name_var.get()
         self.name_var.trace_add("write", _callback)
@@ -345,10 +490,6 @@ class SetPage(Page):
     def check_saved(self) -> bool:
         """Checks if the current in-memory set matches the saved file."""
         return self.set.check_saved()
-    
-    def save(self) -> None:
-        """Saves the current set to file."""
-        self.set.save()
 
     def restore(self) -> None:
         """Restores the set from file."""

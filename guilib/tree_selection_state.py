@@ -17,6 +17,7 @@ class TreeSelectionState:
             self.user_selected = False
             self.selected = tk.BooleanVar(value=False)
             self.nb_selected_leafs = tk.IntVar(value=0)
+            self.deleted = False
 
     def __init__(self):
         self._tree = Tree(TreeSelectionState._NodeData())
@@ -28,13 +29,20 @@ class TreeSelectionState:
     def _node(self, path: Path) -> _NodeData:
         return self._sub_tree(path).value
 
+    def _check_deleted(self, path: Path):
+        node = self._node(path)
+        if node.deleted:
+            raise ValueError(f"Node at path {path.indices} has been deleted")
+        return node
+
     def get(self, path: Path) -> tuple[bool, int]:
         """Returns the selected state of the node at `path`."""
-        node = self._node(path)
+        node = self._check_deleted(path)
         return (node.selected.get(), node.nb_selected_leafs.get())
 
     def children_paths(self, path: Path) -> List[Path]:
         """Returns the list of child paths for the node at `path`."""
+        self._check_deleted(path)
         return self._tree.children_paths(path)
 
     # --- adding nodes ------------------------------------------------
@@ -44,11 +52,34 @@ class TreeSelectionState:
         `parent_path` is a list of child indices from the root; empty list
         refers to the root.
         """
+        self._check_deleted(parent_path)
         new_data = TreeSelectionState._NodeData()
 
         new_path = self._tree.add_child_at(parent_path, new_data)
         self.set_callbacks(new_path, selected_callback, nb_callback)
         return new_path
+
+    def delete_node(self, path: Path):
+        """Deletes the node at `path`."""
+        
+        node = self._node(path)
+
+        # Delete children
+        for child in self.children_paths(path):
+            self.delete_node(child)
+
+        # Deselect all
+        self.deselect_all_callback(path)
+
+        # Mark as deleted
+        node.deleted = True
+        
+        # Remove all callbacks
+        for a,id in node.selected.trace_info():
+            node.selected.trace_remove(a, id) # type: ignore
+        for a,id in node.nb_selected_leafs.trace_info():
+            node.nb_selected_leafs.trace_remove(a, id) # type: ignore
+        
 
     # --- adding callbacks to nodes -------------------------------
     def set_callbacks(self, path: Path, selected_callback: Callable[[bool], None] | None = None, nb_callback: Callable[[int], None] | None = None):
@@ -57,7 +88,7 @@ class TreeSelectionState:
         The callback is called with two arguments: the new selected value
         (bool) and the number of selected leafs under this node (int).
         """
-        node = self._node(path)
+        node = self._check_deleted(path)
 
         if selected_callback is not None:
             node.selected.trace_add("write", lambda a,b,c: selected_callback(node.selected.get()))
@@ -70,14 +101,14 @@ class TreeSelectionState:
         The callback is called with two arguments: the new selected value
         (bool) and the number of selected leafs under this node (int).
         """
-        node = self._node(path)
+        node = self._check_deleted(path)
 
         node.selected .trace_add("write", lambda a,b,c: callback(node.selected.get(), node.nb_selected_leafs.get()))
         node.nb_selected_leafs.trace_add("write", lambda a,b,c: callback(node.selected.get(), node.nb_selected_leafs.get()))
 
     def tracker_vars(self, path: Path) -> tuple[tk.BooleanVar, tk.IntVar]:
         """Returns the tracker variables for the node at `path`."""
-        node = self._node(path)
+        node = self._check_deleted(path)
 
         bool_var = tk.BooleanVar()
         int_var = tk.IntVar()
@@ -92,7 +123,7 @@ class TreeSelectionState:
 
         The second variable is formatted using the provided function.
         """
-        node = self._node(path)
+        node = self._check_deleted(path)
 
         bool_var = tk.BooleanVar()
         str_var = tk.StringVar()
@@ -104,7 +135,7 @@ class TreeSelectionState:
     # --- selection logic ---------------------------------------------
     def select_all_callback(self, path: Path):
         """Callback for a select-all button."""
-        
+        self._check_deleted(path)
         tree = self._sub_tree(path)
         node = tree.value
 
@@ -126,7 +157,13 @@ class TreeSelectionState:
         # Update counts on the path up to root
         self._update_counts_upwards(path, delta)
 
-    def _propagate_to_descendants(self, path: Path, set_to: bool):
+    def _propagate_to_descendants(self, path: Path, set_to: bool) -> int:
+
+        try:
+            self._check_deleted(path)
+        except ValueError:
+            return 0
+
         node = self._sub_tree(path)
         
         def recurse(t: Tree[TreeSelectionState._NodeData]) -> int:
@@ -186,6 +223,7 @@ class TreeSelectionState:
 
     def deselect_all_callback(self, path: Path):
         """Callback to deselect all items under the node at `path`."""
+        self._check_deleted(path)
         node = self._sub_tree(path)
 
         def recurse(t: Tree[TreeSelectionState._NodeData]) -> int:

@@ -124,6 +124,13 @@ class _VocabularyFile:
             return False
         return self == saved_file
 
+    def delete(self):
+        """Deletes the vocabulary file."""
+        try:
+            self.__filepath.unlink()
+        except:
+            pass
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, _VocabularyFile):
             return False
@@ -220,6 +227,13 @@ class _VocabularyScoreFile:
         except:
             return False
         return self == saved_file
+
+    def delete(self):
+        """Deletes the vocabulary score file."""
+        try:
+            self.__filepath.unlink()
+        except:
+            pass
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, _VocabularyScoreFile):
@@ -329,6 +343,11 @@ class QuestionSet:
         
     def restore(self):
         self.__dict__.update(QuestionSet(self._name).__dict__)
+
+    def delete(self):
+        """Deletes the vocabulary set files."""
+        self._vocab_file.delete()
+        self._score_file.delete()
 
     def clear_all_questions(self):
         """Clears all questions from the set."""
