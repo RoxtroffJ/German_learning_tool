@@ -8,7 +8,6 @@ VOC_SCORES_FOLDER = Path.cwd() / "scores" / "vocabulary"
 VOC_FOLDER.mkdir(parents=True, exist_ok=True)
 VOC_SCORES_FOLDER.mkdir(parents=True, exist_ok=True)
 
-
 class Gender(Enum):
     """Enumeration of German noun genders."""
     MASCULINE = "M"
@@ -289,9 +288,17 @@ class Question:
         return self._data.answer
 
     @property
-    def score(self) -> int:
+    def score(self) -> float:
         """Returns the question score."""
-        return self._score.streak
+        score = self._score
+        return score.streak * score.total / (score.total - score.correct + 1)
+    
+    def score_str(self) -> str:
+        """Returns a string representation of the question score."""
+        if self._score.total == 0:
+            return "No attempts"
+        percentage = (self._score.correct / self._score.total) * 100
+        return f"{self._score.correct}/{self._score.total} correct ({percentage:.1f}%), Streak: {self._score.streak}"
     
     def update_score(self, correct: bool):
         """Updates the question score based on whether the answer was correct."""

@@ -730,7 +730,6 @@ class QuestionDrawer(QD):
             answer_entry.config(state="readonly")
 
             # Add edit button
-
             edit_btn = ttk.Button(question_frame)
             edit_btn.grid(column=1, row=0, padx=PADDING, pady=PADDING)
 
@@ -748,6 +747,10 @@ class QuestionDrawer(QD):
                 
                 edit_btn.config(text="Confirm", command=confirm_callback)
             edit_btn.config(text="Edit", command=edit_callback)
+
+            # Add score display
+            score_label = ttk.Label(question_frame, text=question.score_str())
+            score_label.grid(column=2, row=0, padx=PADDING, pady=PADDING, sticky="E")
 
             # Remove submit button
             submit_btn.destroy()

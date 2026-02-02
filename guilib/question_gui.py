@@ -74,6 +74,8 @@ class QuestionnerPage(Page):
 
         weights = [question.get_probability() for question in self.__question_list]
 
+        print(weights)
+
         while True:
             idx, selected_question = choices(list(enumerate(self.__question_list)), weights=weights, k=1)[0]
             if idx not in self.__deleted_questions:
