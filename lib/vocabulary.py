@@ -288,6 +288,20 @@ class Question:
         """Returns the answer string."""
         return self._data.answer
 
+    @property
+    def score(self) -> int:
+        """Returns the question score."""
+        return self._score.streak
+    
+    def update_score(self, correct: bool):
+        """Updates the question score based on whether the answer was correct."""
+        self._score.total += 1
+        if correct:
+            self._score.correct += 1
+            self._score.streak += 1
+        else:
+            self._score.streak = 0
+
     def reset_with(self, question: str, answer: str):
         """Resets the question and answer strings, as well as score in place."""
         self._data.question = question

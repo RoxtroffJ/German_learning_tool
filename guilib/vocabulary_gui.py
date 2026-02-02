@@ -40,6 +40,8 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
         self.__home = home
         self.__idx = 0
 
+        self.__selected: set[TreePath] = set()
+
         self.__buttons: dict[TreePath, list[tk.Misc]] = {}
 
         # Register vocabulary section in the selection state
@@ -105,6 +107,11 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
         
         # Register in selection state
         path = self._selection_state.add_node(self._path)
+
+        def __select_callback(selected: bool):
+            self.__selected.add(path) if selected else self.__selected.discard(path)
+
+        self._selection_state.set_callbacks(path, selected_callback=__select_callback)
         
         self.sets[path] = qset
 
@@ -140,7 +147,6 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
             set_page = SetPage(
                 new_page.frame,
                 qset,
-                self.sets,
                 sticky="NSEW",
                 editable=True
             )
@@ -209,7 +215,6 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
         set_page = SetPage(
             new_page.frame,
             new_set,
-            self.sets,
             sticky="NSEW",
             editable=True,
             name_var=name_var
@@ -329,11 +334,25 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
             self._path
         )
 
+    def to_question_drawers(self) -> list["QuestionDrawer"]:
+        """Returns a list of QuestionDrawers for all selected sets."""
+        question_drawers: list[QuestionDrawer] = []
+        for path in self.__selected:
+            if path in self.sets:
+                qset = self.sets[path]
+                set_with_delete = SetWithDelete(qset)
+                for idx in range(len(qset.questions)):
+                    qd = QuestionDrawer(
+                        question_idx=idx,
+                        question_set=set_with_delete
+                    )
+                    question_drawers.append(qd)
+        return question_drawers
 
 class SetPage(Page):
     """A page displaying the contents of a vocabulary set."""
     
-    class _Row(ttk.Frame):
+    class Row(ttk.Frame):
         """A row displaying a question-answer pair."""
         
         def __init__(self, parent: tk.Misc, question: lvoc.Question, editable: tk.BooleanVar, on_delete: Callable[[], None]):
@@ -384,30 +403,22 @@ class SetPage(Page):
     def __init__(
             self, 
             root: tk.Misc, 
-            set: lvoc.QuestionSet, 
-            sets: dict[TreePath, lvoc.QuestionSet],
+            set: lvoc.QuestionSet,
             sticky: str = "NSEW", 
             editable: bool = False, 
             name_var: tk.StringVar | None = None
     ):
         super().__init__(root, sticky)
+
+        # Use SetWithDelete to manage questions and deletions
+        self._set_helper = SetWithDelete(set)
+
         self.editable = tk.BooleanVar(value=editable)
-        
-        self.__set = set
-        self.__sets = sets
 
         self.name_var = name_var or tk.StringVar(value=set.name)
         def _callback(a: str, b: str, c: str) -> None:
-            self.__set.name = self.name_var.get()
+            self.set.name = self.name_var.get()
         self.name_var.trace_add("write", _callback)
-
-        # Create dictionnary int, question of questions in set.questions
-        # so we can manage deletions easily
-        self._questions: dict[int, lvoc.Question] = {}
-        self._next_free_index = len(self._questions)
-        self._unused_indices: list[int] = []
-
-        self.__set_needs_rebuild = False
         
         frame = self.frame
 
@@ -432,9 +443,17 @@ class SetPage(Page):
         self._scrollable_frame = scrollbar_page.frame
         self._scrollable_frame.columnconfigure(0, weight=1)
 
-        # Add existing questions
-        for question in set.questions:
-            self.add_question(question, add_to_list=True, add_to_set=False)
+        # Add existing questions (build rows from helper's stored questions)
+        for idx, question in self._set_helper.question_items():
+            def make_on_delete(i: int):
+                return lambda: (self._set_helper.delete_question(i))
+            row = SetPage.Row(
+                self._scrollable_frame,
+                question,
+                self.editable,
+                make_on_delete(idx)
+            )
+            row.grid(column=0, sticky="EW")
 
         # Add a add-question button
         def add_question_callback() -> None:
@@ -456,21 +475,12 @@ class SetPage(Page):
 
     def add_question(self, question: lvoc.Question, add_to_list: bool, add_to_set: bool) -> None:
         """Adds a new row to the set page."""
-
-        # Determine index
-        if len(self._unused_indices) > 0:
-            index = self._unused_indices.pop()
-        else:
-            index = self._next_free_index
-            self._next_free_index += 1
-        
-        # Add GUI
+        # Add to helper (which returns an index) and create a GUI row
+        index = self._set_helper.add_question(question, _add_to_list=add_to_list, _add_to_set=add_to_set)
 
         def on_delete():
-            del self._questions[index]
-            self._unused_indices.append(index)
-            self.__set_needs_rebuild = True
-        row = SetPage._Row(
+            self._set_helper.delete_question(index)
+        row = SetPage.Row(
             self._scrollable_frame,
             question,
             self.editable,
@@ -478,12 +488,68 @@ class SetPage(Page):
         )
         row.grid(column=0, sticky="EW")
 
-        # Add storage and mapping
-        if add_to_list:
-            self._questions[index] = question
-        if add_to_set:
-            self.__set.add_question(question)
+    @property
+    def set(self) -> lvoc.QuestionSet:
+        """Returns the vocabulary set displayed in this page."""
+        return self._set_helper.set
 
+    def check_saved(self) -> bool:
+        """Checks if the current in-memory set matches the saved file."""
+        return self._set_helper.check_saved()
+
+    def restore(self) -> None:
+        """Restores the set from file."""
+        self._set_helper.restore()
+        # Rebuild the page
+        for widget in self._scrollable_frame.winfo_children():
+            widget.destroy()
+        for idx, question in self._set_helper.question_items():
+            def make_on_delete(i: int):
+                return lambda: (self._set_helper.delete_question(i))
+            row = SetPage.Row(
+                self._scrollable_frame,
+                question,
+                self.editable,
+                make_on_delete(idx)
+            )
+            row.grid(column=0, sticky="EW")
+    
+# Export the logic of sets supporting deletion from SetPage to own class
+class SetWithDelete():
+    """A QuestionSet that supports addition and deletion of its questions."""
+    
+    def __init__(self, set: lvoc.QuestionSet):
+        self.__set = set
+        self._questions: dict[int, lvoc.Question] = {}
+        self._next_free_index = len(self._questions)
+        self._unused_indices: list[int] = []
+
+        self.__set_needs_rebuild = False
+
+        # Add existing questions
+        for question in set.questions:
+            self.add_question(question, _add_to_list=True, _add_to_set=False)
+
+    def add_question(self, question: lvoc.Question, _add_to_list: bool = True, _add_to_set: bool = True):
+        # Determine index
+        if len(self._unused_indices) > 0:
+            index = self._unused_indices.pop()
+        else:
+            index = self._next_free_index
+            self._next_free_index += 1
+        
+        # Add storage and mapping
+        if _add_to_list:
+            self._questions[index] = question
+        if _add_to_set:
+            self.__set.add_question(question)
+        return index
+    
+    def delete_question(self, index: int):
+        del self._questions[index]
+        self._unused_indices.append(index)
+        self.__set_needs_rebuild = True
+    
     @property
     def set(self) -> lvoc.QuestionSet:
         """Returns the vocabulary set displayed in this page."""
@@ -495,56 +561,182 @@ class SetPage(Page):
             self.__set_needs_rebuild = False
         return self.__set
 
-    def check_saved(self) -> bool:
-        """Checks if the current in-memory set matches the saved file."""
-        return self.set.check_saved()
-
     def restore(self) -> None:
         """Restores the set from file."""
         self.set.restore()
-        # Rebuild the page
-        for widget in self._scrollable_frame.winfo_children():
-            widget.destroy()
+
         self._questions.clear()
         self._next_free_index = 0
         self._unused_indices.clear()
         for question in self.set.questions:
-            self.add_question(question, add_to_list=True, add_to_set=False)
+            self.add_question(question, _add_to_list=True, _add_to_set=False)
         self.__set_needs_rebuild = False
     
-# class QuestionDrawer(QD):
-#     """A question drawer that displays a vocabulary question."""
+    def check_saved(self) -> bool:
+        """Checks if the current in-memory set matches the saved file."""
+        return self.set.check_saved()
+
+    def question_items(self):
+        """Returns a list of (index, question) pairs for current questions."""
+        return list(self._questions.items())
     
-#     def __init__(self, question: lvoc.Question):
-#         self._question = question
+    def get_question(self, index: int) -> lvoc.Question:
+        """Returns the question at the given index."""
+        return self._questions[index]
+
+# QD for a page.
+# Supports edition and deletion of questions, with edititon of the set the questions belong to.
+# Saves at each answer and modification of question.
+class QuestionDrawer(QD):
+    """A question drawer for vocabulary questions."""
     
-#     def draw(self, root: tk.Misc, on_answered: Callable[[], None] | None = None) -> None:
-#         frame = ttk.Frame(root)
-#         frame.columnconfigure(0, weight=1)
-#         frame.rowconfigure(0, weight=1)
+    def __init__(
+            self,
+            question_idx: int,
+            question_set: SetWithDelete,
+    ):
+        super().__init__()
+        self._question_idx = question_idx
+        self._question_set = question_set
+        self._answered = False
 
-#         question_label = ttk.Label(frame, text=self._question.question, wraplength=400)
-#         question_label.grid(column=0, row=0, padx=PADDING, pady=PADDING)
+    def get_probability(self) -> float:
+        """Returns the probability as a float."""
+        score = self._question_set.get_question(self._question_idx).score
 
-#         answer_entry = ttk.Entry(frame)
-#         answer_entry.grid(column=0, row=1, padx=PADDING, pady=PADDING)
-
-#         def submit_callback():
-#             user_answer = answer_entry.get().strip()
-#             if user_answer.lower() == self._question.answer.lower():
-#                 # Correct answer
-#                 self._question.update_probability(correct=True)
-#             else:
-#                 # Incorrect answer
-#                 self._question.update_probability(correct=False)
-#             if on_answered is not None:
-#                 on_answered()
+        return 1 / (score + 1)
+    
+    def draw(self, root: tk.Misc, on_answered: Callable[[], None] | None = None, on_deleted: Callable[[], None] | None = None) -> None:
+        """Draws the question on the given root widget. 
+        When the question is answered, the `on_answered` callback should be called, and the probability updated (and saved).
+        When the question is deleted, the `on_deleted` callback should be called. This ensures the question is not displayed anymore.
         
-#         submit_button = ttk.Button(frame, text="Submit", command=submit_callback)
-#         submit_button.grid(column=0, row=2, padx=PADDING, pady=PADDING)
+        Can be called multiple times."""
+        
+        # First we show a frame of the question with an Entry for the answer.
+        # On submission, we check the answer, update the score, save the set, and call on_answered.
+        # Now the answer is displayed instead of the entry (with a correct/incorrect indication).
+        # An edit button is also showed, which would show a SetPage.Row to edit or delete the question.
+        # Finally, if the answer is wrong but is the answer of another question, we show that question too.
+        
+        # Clear root
+        for w in root.winfo_children():
+            w.destroy()
 
-#         frame.pack(fill="both", expand=True)
+        question = self._question_set.get_question(self._question_idx)
+
+        # Top: question text
+        question_frame = ttk.Frame(root)
+        question_frame.grid(column=0, row=0, sticky="EW")
+
+        q_label = ttk.Label(question_frame, text=question.question + " :")
+        q_label.grid(column=0, row=0, sticky="W", padx=PADDING, pady=PADDING)
+
+        entry_var = tk.StringVar()
+        answer_entry = ttk.Entry(root, textvariable=entry_var)
+        answer_entry.grid(column=0, row=1, sticky="EW", padx=PADDING, pady=PADDING)
+
+        # Container for result / edit area
+        result_frame = ttk.Frame(root)
+        result_frame.grid(column=0, row=2, sticky="NSEW", padx=PADDING, pady=PADDING)
+        result_frame.columnconfigure(0, weight=1)
+
+        def do_save():
+            try:
+                self._question_set.set.save()
+            except ValueError as e:
+                tkmsgbox.showerror(title="Save Error", message=str(e), icon="error")
+
+        def clear_result_frame():
+            for w in result_frame.winfo_children():
+                w.destroy()
+
+        def handle_submit():
+            given = entry_var.get().strip()
+            correct_answer = question.answer.strip()
+
+            correct = (given.lower() == correct_answer.lower())
+            clear_result_frame()
+
+            if not correct:
+                # Check if there is a question with same question:
+                for _, other_question in self._question_set.question_items():
+                    if other_question.question.strip().lower() == given.lower():
+                        label = ttk.Label(result_frame, text=f"Correct but please give another word.", foreground="orange")
+                        label.grid(column=0, row=0, sticky="W", padx=PADDING, pady=PADDING)
+                        return
+
+                # Check if there is a question with same answer:
+                other_questions: list[str] = []
+                for _, other_question in self._question_set.question_items():
+                    if other_question.answer.strip().lower() == given.lower():
+                        other_questions.append(other_question.question)
+                
+                if len(other_questions) > 0:
+                    clear_result_frame()
+                    label = ttk.Label(result_frame, text=f"'{given}' is correct for:", foreground="red")
+                    label.grid(column=0, row=1, sticky="W", padx=PADDING, pady=PADDING)
+
+                    for idx, oq in enumerate(other_questions):
+                        if idx == len(other_questions) - 1:
+                            sep = "."
+                        else:
+                            sep = ","
+                        
+                        oq_label = ttk.Label(result_frame, text=f"'{oq}'" + sep, foreground="red")
+                        oq_label.grid(column=idx + 1, row=1, sticky="W", padx=PADDING, pady=PADDING)
+                    
+                # Incorrect answer
+                label = ttk.Label(result_frame, text=f"Incorrect. Correct answer: '{correct_answer}'", foreground="red")
+                label.grid(column=0, row=0, sticky="W", padx=PADDING, pady=PADDING, columnspan=max(len(other_questions), 1))
+            else:
+                label = ttk.Label(result_frame, text="Correct!", foreground="green")
+                label.grid(column=0, row=0, sticky="W", padx=PADDING, pady=PADDING)
+            
+            # Update score
+            question.update_score(correct)
+            do_save()
+
+            # Disable entry
+            answer_entry.config(state="disabled")
+
+            # Add edit button
+
+            edit_btn = ttk.Button(question_frame)
+            edit_btn.grid(column=0, row=1, padx=PADDING, pady=PADDING)
+
+            def edit_callback():
+                def on_deleted():
+                    self._question_set.delete_question(self._question_idx)
+                    do_save()
+                    if on_deleted is not None:
+                        on_deleted()
+                
+                row = SetPage.Row(
+                    question_frame,
+                    question,
+                    tk.BooleanVar(value=True),
+                    on_deleted
+                )
+                row.grid(column=0, row=0, sticky="EW")
+
+                def confirm_callback():
+                    row.make_editable(False)
+                    edit_btn.config(text="Edit", command=edit_callback)
+                
+                edit_btn.config(text="Confirm", command=confirm_callback)
+            edit_btn.config(text="Edit", command=edit_callback)
+
+            # Call on_answered callback after updating
+            if on_answered is not None:
+                on_answered()
 
 
+        submit_btn = ttk.Button(root, text="Submit", command=handle_submit)
+        submit_btn.grid(padx=PADDING, pady=PADDING)
 
+        # Allow pressing Enter to submit
+        answer_entry.bind("<Return>", lambda e: handle_submit())
 
+        # Give focus to entry
+        answer_entry.focus_set()
