@@ -118,6 +118,8 @@ class _VocabularyFile:
 
     def check_saved(self) -> bool:
         """Checks if the current in-memory questions match the saved file."""
+        if not self.__filepath.exists():
+            return False
         try:
             saved_file = _VocabularyFile.load(self.__name)
         except:
@@ -222,6 +224,9 @@ class _VocabularyScoreFile:
 
     def check_saved(self) -> bool:
         """Checks if the current in-memory scores match the saved file."""
+        if not self.__filepath.exists():
+            return False
+        
         try:
             saved_file = _VocabularyScoreFile.load(self.__name)
         except:
