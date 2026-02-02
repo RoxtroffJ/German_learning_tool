@@ -293,11 +293,12 @@ class Question:
 
 class QuestionSet:
 
-    new_set_name = "New Set"
+    new_set_name = "Enter a name"
 
     """Represents a set of vocabulary questions with their scores."""
     def __init__(self, name: str | None = None):
-        self._name = name or self.new_set_name
+        # Preserve empty-string names. Only use the placeholder when name is None.
+        self._name = name if name is not None else self.new_set_name
         
         self._vocab_file = _VocabularyFile.load(self._name)
         self._score_file = _VocabularyScoreFile.load(self._name)
@@ -341,7 +342,7 @@ class QuestionSet:
         """
 
         if self._name == self.new_set_name:
-            raise ValueError("Please rename before saving.")
+            raise ValueError(f"Name '{self.new_set_name}' is reserved.")
 
         self._vocab_file.save()
         self._score_file.save()
@@ -365,7 +366,15 @@ class QuestionSet:
         vocab_sets: list[QuestionSet] = []
         for filepath in VOC_FOLDER.glob("*.voc"):
             try:
-                name = filepath.stem
+                # Derive the set name by stripping the literal suffix '.voc'
+                # from the filename. This ensures a file named '.voc'
+                # produces an empty string name (instead of '.voc').
+                filename = filepath.name
+                if filename.endswith(".voc"):
+                    name = filename[:-4]
+                else:
+                    raise ValueError(f"Invalid vocabulary file name: {filename}")
+
                 vocab_set = cls(name)
                 vocab_sets.append(vocab_set)
             except Exception as e:

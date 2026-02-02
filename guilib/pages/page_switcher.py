@@ -34,8 +34,14 @@ class PageSwitcher(Generic[_P]):
     def show_page(self, page: Page):
         """Shows the page. Undefined behaviour if the page has not been created in the root component."""
 
-        if self.__current_page is not None:
-            self.__current_page.hide_page()
+        self.remove_current_page()
         
         page.display_page()
         self.__current_page = page
+    
+    def remove_current_page(self):
+        """Removes the current page from display."""
+
+        if self.__current_page is not None:
+            self.__current_page.hide_page()
+            self.__current_page = None

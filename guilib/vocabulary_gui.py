@@ -179,7 +179,7 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
         edit_btn = ttk.Button(button_frame, text="Edit", command=__edit_callback)
         edit_btn.grid(column=1, row=idx, pady=PADDING, padx=PADDING)
 
-        delete_btn = ttk.Button(button_frame, text="✕", command=lambda: self.delete_set(path))
+        delete_btn = ttk.Button(button_frame, text="✕", command=lambda: self.delete_set(path, warn=True, delete_files=True))
         delete_btn.grid(column=2, row=idx, pady=PADDING, padx=PADDING)
 
         self.__buttons[path] = [btn, edit_btn, delete_btn]
@@ -216,6 +216,9 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
                 return True
             
             try:
+                if set_page.set.name == lvoc.QuestionSet.new_set_name:
+                    # Rename 
+                    set_page.name_var.set("New Set")
                 self._guarded_save(set_page.set, path, set_page.name_var)
                 return True
             except ValueError as e:
@@ -227,7 +230,7 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
                     default=tkmsgbox.NO
                 )
                 if result:
-                    self.delete_set(path, delete_files=False)
+                    self.delete_set(path, warn=False, delete_files=True)
                     return True
                 else:
                     return False
