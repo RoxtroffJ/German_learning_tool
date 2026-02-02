@@ -71,6 +71,9 @@ class _VocabularyFile:
         vocab_file = cls(name)
         filepath = vocab_file.__filepath
 
+        if not filepath.exists():
+            return vocab_file  # empty file
+
         with open(filepath, "r", encoding="utf-8") as f:
             lines = f.readlines()
         
@@ -103,8 +106,8 @@ class _VocabularyFile:
         if new_filepath != self.__filepath:
             try:
                 self.__filepath.rename(new_filepath)
-            except Exception as e:
-                print(f"Warning: could not rename {self.__filepath} -> {new_filepath}: {e}")
+            except:
+                pass
             self.__filepath = new_filepath
 
         with open(self.__filepath, "w", encoding="utf-8") as f:
@@ -117,8 +120,7 @@ class _VocabularyFile:
         """Checks if the current in-memory questions match the saved file."""
         try:
             saved_file = _VocabularyFile.load(self.__name)
-        except Exception as e:
-            print(f"Error loading vocabulary file for comparison: {e}")
+        except:
             return False
         return self == saved_file
 
@@ -198,8 +200,8 @@ class _VocabularyScoreFile:
         if new_filepath != self.__filepath:
             try:
                 self.__filepath.rename(new_filepath)
-            except Exception as e:
-                print(f"Warning: could not rename {self.__filepath} -> {new_filepath}: {e}")
+            except:
+                pass
             self.__filepath = new_filepath
 
         with open(self.__filepath, "wb") as f:
@@ -215,8 +217,7 @@ class _VocabularyScoreFile:
         """Checks if the current in-memory scores match the saved file."""
         try:
             saved_file = _VocabularyScoreFile.load(self.__name)
-        except Exception as e:
-            print(f"Error loading vocabulary score file for comparison: {e}")
+        except:
             return False
         return self == saved_file
 
@@ -272,12 +273,15 @@ class Question:
         self._score = _QuestionScore()
 
 class QuestionSet:
+
+    new_set_name = "New Set"
+
     """Represents a set of vocabulary questions with their scores."""
-    def __init__(self, name: str):
-        self._name = name
+    def __init__(self, name: str | None = None):
+        self._name = name or self.new_set_name
         
-        self._vocab_file = _VocabularyFile.load(name)
-        self._score_file = _VocabularyScoreFile.load(name)
+        self._vocab_file = _VocabularyFile.load(self._name)
+        self._score_file = _VocabularyScoreFile.load(self._name)
 
         # Ensure scores list matches questions list
         while len(self._score_file.scores) < len(self._vocab_file.questions):
@@ -312,7 +316,14 @@ class QuestionSet:
         question.add_to_files(self._vocab_file, self._score_file)
 
     def save(self):
-        """Saves the vocabulary set to its files."""
+        """Saves the vocabulary set to its files.
+        
+        Raises exception if name is new_set_name.
+        """
+
+        if self._name == self.new_set_name:
+            raise ValueError("Please rename before saving.")
+
         self._vocab_file.save()
         self._score_file.save()
         
@@ -340,4 +351,7 @@ class QuestionSet:
     
     def check_saved(self) -> bool:
         """Checks if the current in-memory set matches the saved file."""
+        if self._name == self.new_set_name:
+            return False
         return self._vocab_file.check_saved() and self._score_file.check_saved()
+    

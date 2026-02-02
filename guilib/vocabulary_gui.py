@@ -79,6 +79,13 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
         for qset in question_sets:
             self.add_set(qset)
         
+        # Add set button
+        def add_set_callback() -> None:
+            new_set = lvoc.QuestionSet(name="New Set")
+            self.add_set(new_set)
+        add_set_button = ttk.Button(frame, text="Add New Set", command=add_set_callback)
+        add_set_button.grid(column=0, row=2, pady=PADDING)
+
         page_with_select_all = selection_buttons.HeaderedWithSelectAll(
             page,
             selection_state,
@@ -143,7 +150,15 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
                 if result is None:
                     return False
                 if result:
-                    set_page.save()
+                    try:
+                        set_page.save()
+                    except ValueError as e:
+                        tkmsgbox.showerror(
+                            title="Save Error",
+                            message=str(e),
+                            icon="error"
+                        )
+                        return False
                 else:
                     set_page.restore()
                 return True
@@ -153,6 +168,9 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
 
             set_page.display_page()
             self.__menu_treer.page_switcher.show_page(new_page)
+
+            btn.config(textvariable=set_page.name_var)
+        
         edit_btn = ttk.Button(button_frame, text="Edit", command=__edit_callback)
         edit_btn.grid(column=1, row=idx, pady=PADDING, padx=PADDING)
 
