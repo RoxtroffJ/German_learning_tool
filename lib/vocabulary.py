@@ -8,6 +8,8 @@ VOC_SCORES_FOLDER = Path.cwd() / "scores" / "vocabulary"
 VOC_FOLDER.mkdir(parents=True, exist_ok=True)
 VOC_SCORES_FOLDER.mkdir(parents=True, exist_ok=True)
 
+SCORE_EXPONENT = 2
+
 class Gender(Enum):
     """Enumeration of German noun genders."""
     MASCULINE = "M"
@@ -291,8 +293,14 @@ class Question:
     def score(self) -> float:
         """Returns the question score."""
         score = self._score
-        return score.streak * score.total / (score.total - score.correct + 1)
+        return (score.streak * score.total / (score.total - score.correct + 1)) ** SCORE_EXPONENT
     
+    def avg(self) -> float:
+        """Returns the average score (correct/total) for this question."""
+        if self._score.total == 0:
+            return 0.0
+        return self._score.correct / self._score.total
+
     def score_str(self) -> str:
         """Returns a string representation of the question score."""
         if self._score.total == 0:

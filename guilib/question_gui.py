@@ -1,6 +1,9 @@
 """Manages the question GUI page."""
 
 from abc import ABC, abstractmethod
+
+import tkinter as tk
+
 from tkinter import Misc, ttk
 from typing import Callable
 
@@ -38,6 +41,10 @@ class QuestionDrawer(ABC):
     def get_probability(self) -> float:
         """Returns the probability as a float."""
         ...
+    @abstractmethod
+    def get_average(self) -> float:
+        """Returns the average score as a float between 0 and 1."""
+        ...
 
 class QuestionnerPage(Page):
     """A page that shows questions to the user.
@@ -49,6 +56,7 @@ class QuestionnerPage(Page):
         self.__question_list = question_list
         self.__deleted_questions: set[int] = set()
         self.__empty_callback = empty_callback
+        self.progress_var = tk.DoubleVar(value=0.0)
         
         self._curr_question_frame: ttk.Frame | None = None
 
@@ -74,7 +82,10 @@ class QuestionnerPage(Page):
 
         weights = [question.get_probability() for question in self.__question_list]
 
-        print(weights)
+        sum_denom = sum(weights)
+        sum_numer = sum([question.get_probability() * question.get_average() for question in self.__question_list])
+
+        self.progress_var.set(0.0 if sum_denom == 0 else sum_numer / sum_denom)
 
         while True:
             idx, selected_question = choices(list(enumerate(self.__question_list)), weights=weights, k=1)[0]

@@ -626,6 +626,9 @@ class QuestionDrawer(QD):
 
         return 1 / (score + 1)
     
+    def get_average(self) -> float:
+        return self._question_set.get_question(self._question_idx).avg()
+    
     def draw(self, root: tk.Misc, on_answered: CallOnce) -> None:
         """Draws the question on the given root widget. 
         When the question is answered, the `on_answered` callback should be called, and the probability updated (and saved).

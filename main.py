@@ -77,6 +77,16 @@ def menu_page_maker(root: tk.Misc, sticky: str):
 			mp,
 			page_maker=pager
 		)
+
+		progress_var = question_page.inner_page.progress_var
+		progress_bar = ttk.Progressbar(
+			question_page.header_frame(), 
+			variable=progress_var, 
+			maximum=1.0
+		)
+		progress_bar.grid(column=0, row=0, padx=PADDING, pady=PADDING, sticky="EW")
+		question_page.header_frame().columnconfigure(0, weight=1)
+
 		mper.show_page(question_page)
 
 	start_button = ttk.Button(footer_frame, command=callback)
