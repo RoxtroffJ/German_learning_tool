@@ -143,7 +143,8 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
                 
                 result = tkmsgbox.askyesnocancel(
                     title="Unsaved Changes",
-                    message="You have unsaved changes. Do you want to save them before exiting?",
+                    message="You have unsaved changes.",
+                    detail="Do you want to save them before exiting?",
                     icon="warning"
                 )
 
