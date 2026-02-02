@@ -98,6 +98,7 @@ class QuestionnerPage(Page):
 
         frame = ttk.Frame(self.frame)
         self._curr_question_frame = frame
+
         frame.grid(column=0, row=2, sticky="NSEW")
 
 

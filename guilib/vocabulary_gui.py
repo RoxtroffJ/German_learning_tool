@@ -652,7 +652,10 @@ class QuestionDrawer(QD):
         # Container for result / edit area
         result_frame = ttk.Frame(root)
         result_frame.grid(column=0, row=2, sticky="NSEW", padx=PADDING, pady=PADDING)
-        result_frame.columnconfigure(0, weight=1)
+        
+        root.columnconfigure(0, weight=1)
+        root.rowconfigure(2, weight=1)
+        
 
         def do_save():
             try:

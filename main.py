@@ -110,6 +110,7 @@ menu_treer = TreePages(menu_pager, sticky="NSEW")
 menu_page = menu_treer.get_root()
 menu_frame = menu_page.frame
 
+menu_frame.columnconfigure(0, weight=1)
 
 vocab_page = vocabulary_gui.VocabularySelectionPage(
 	menu_treer,
