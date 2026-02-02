@@ -1,3 +1,4 @@
+import re
 import tkinter as tk
 from tkinter import ttk
 import tkinter.messagebox as tkmsgbox
@@ -18,6 +19,12 @@ import lib.vocabulary as lvoc
 _HP = TypeVar("_HP", bound=HeaderedPage[Any], covariant=True)
 
 _DELETE_BUTTON_WIDTH = 2
+
+def natural_key(s: str):
+    return [
+        int(part) if part.isdigit() else part.lower()
+        for part in re.split(r'(\d+)', s)
+    ]
 
 class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.TreeSubPage[_HP]], Generic[_HP], ToQuestionDrawer):
     """A page to select the vocabulary questions sets."""
@@ -55,7 +62,7 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
 
         # Load the sets
         question_sets = lvoc.QuestionSet.load_all()
-        question_sets.sort(key=lambda qs: qs.name)
+        question_sets.sort(key=lambda qs: natural_key(qs.name))
 
         # Register each set in the selection state
         self.sets: dict[TreePath, lvoc.QuestionSet] = {}

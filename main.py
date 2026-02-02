@@ -103,7 +103,7 @@ def menu_page_maker(root: tk.Misc, sticky: str):
 	return header_footer_page
 
 menu_pager = PageSwitcher(main, page_maker=menu_page_maker)
-menu_treer = TreePages(menu_pager, sticky="NSEW")
+menu_treer = TreePages(menu_pager, sticky="")
 
 # Pages
 
