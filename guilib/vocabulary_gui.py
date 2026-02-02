@@ -133,7 +133,7 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
             btn.config(textvariable=name_var)
         
         # Center the button within the full-width grid cell.
-        btn.grid(column=0, row=idx, padx=PADDING, pady=PADDING)
+        btn.grid(column=0, row=idx, padx=PADDING, pady=PADDING, sticky="EW")
 
         selection_buttons.stylify_button(
             btn,
@@ -690,7 +690,7 @@ class QuestionDrawer(QD):
             if not correct:
                 # Check if there is a question with same question:
                 for _, other_question in self._question_set.question_items():
-                    if other_question.question.strip().lower() == given.lower():
+                    if other_question.question.strip().lower() == question.question.strip().lower() and other_question.answer.strip().lower() == given.lower():
                         label = ttk.Label(result_frame, text=f"Correct but please give another word.", foreground="orange")
                         label.grid(column=0, row=0, sticky="W", padx=PADDING, pady=PADDING)
                         return
