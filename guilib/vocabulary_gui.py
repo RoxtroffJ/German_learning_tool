@@ -9,11 +9,15 @@ from guilib import selection_buttons
 from guilib.pages import ScrollablePage, HeaderedPage, Page, TreePages
 from guilib.tree_selection_state import TreeSelectionState
 
+from guilib.pages.question_gui import QuestionDrawer as QD
+
 from tree import Path as TreePath
 
 import lib.vocabulary as lvoc
 
 _HP = TypeVar("_HP", bound=HeaderedPage[Any], covariant=True)
+
+_DELETE_BUTTON_WIDTH = 2
 
 class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.TreeSubPage[_HP]], Generic[_HP]):
     """A page to select the vocabulary questions sets."""
@@ -179,7 +183,7 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
         edit_btn = ttk.Button(button_frame, text="Edit", command=__edit_callback)
         edit_btn.grid(column=1, row=idx, pady=PADDING, padx=PADDING)
 
-        delete_btn = ttk.Button(button_frame, text="✕", command=lambda: self.delete_set(path, warn=True, delete_files=True))
+        delete_btn = ttk.Button(button_frame, text="✕", command=lambda: self.delete_set(path, warn=True, delete_files=True), width=_DELETE_BUTTON_WIDTH)
         delete_btn.grid(column=2, row=idx, pady=PADDING, padx=PADDING)
 
         self.__buttons[path] = [btn, edit_btn, delete_btn]
@@ -325,6 +329,7 @@ class VocabularySelectionPage(selection_buttons.HeaderedWithSelectAll[TreePages.
             self._path
         )
 
+
 class SetPage(Page):
     """A page displaying the contents of a vocabulary set."""
     
@@ -355,7 +360,7 @@ class SetPage(Page):
             self._answer_entry = ttk.Entry(self, textvariable=self._answer_var)
             self._answer_entry.grid(column=1, row=0, sticky="EW", padx=PADDING, pady=PADDING)
             
-            self._delete_button = ttk.Button(self, text="✕", width=2, command=self.delete_row)
+            self._delete_button = ttk.Button(self, text="✕", width=_DELETE_BUTTON_WIDTH, command=self.delete_row)
 
             self._editable_var.trace_add("write", lambda a,b,c: self.make_editable(self._editable_var.get()))
             self.make_editable(self._editable_var.get())
@@ -417,7 +422,7 @@ class SetPage(Page):
         self.editable.trace_add("write", lambda a,b,c: name_entry.config(state="normal" if self.editable.get() else "readonly"))
 
         # Draw questions
-
+        
         questions_frame = ttk.Frame(frame)
         questions_frame.grid(column=0, row=1, sticky="NSEW")
 
@@ -507,7 +512,38 @@ class SetPage(Page):
             self.add_question(question, add_to_list=True, add_to_set=False)
         self.__set_needs_rebuild = False
     
+# class QuestionDrawer(QD):
+#     """A question drawer that displays a vocabulary question."""
+    
+#     def __init__(self, question: lvoc.Question):
+#         self._question = question
+    
+#     def draw(self, root: tk.Misc, on_answered: Callable[[], None] | None = None) -> None:
+#         frame = ttk.Frame(root)
+#         frame.columnconfigure(0, weight=1)
+#         frame.rowconfigure(0, weight=1)
 
+#         question_label = ttk.Label(frame, text=self._question.question, wraplength=400)
+#         question_label.grid(column=0, row=0, padx=PADDING, pady=PADDING)
+
+#         answer_entry = ttk.Entry(frame)
+#         answer_entry.grid(column=0, row=1, padx=PADDING, pady=PADDING)
+
+#         def submit_callback():
+#             user_answer = answer_entry.get().strip()
+#             if user_answer.lower() == self._question.answer.lower():
+#                 # Correct answer
+#                 self._question.update_probability(correct=True)
+#             else:
+#                 # Incorrect answer
+#                 self._question.update_probability(correct=False)
+#             if on_answered is not None:
+#                 on_answered()
+        
+#         submit_button = ttk.Button(frame, text="Submit", command=submit_callback)
+#         submit_button.grid(column=0, row=2, padx=PADDING, pady=PADDING)
+
+#         frame.pack(fill="both", expand=True)
 
 
 

@@ -83,15 +83,18 @@ class _VocabularyFile:
         
         for line in lines[1:]:
             def fail_msg():
-                print(f"Warning: skipping malformed line in {filepath}: {line.strip()}")
+                print(f"Warning: skipping malformed line in {filepath}: {line.rstrip('\r\n')}")
 
-            parts = line.strip().split("\t")
+            # Use rstrip to only remove trailing newline characters so leading
+            # tabs (which denote an empty question) are preserved. Split only
+            # on the first tab so answers may contain tabs.
+            parts = line.rstrip('\r\n').split("\t", 1)
             if len(parts) < 2:
                 fail_msg()
                 continue
-            
-            question = parts[0]
-            answer = parts[1]
+
+            question = parts[0].strip()
+            answer = parts[1].strip()
 
             data = _QuestionData(question, answer)
             vocab_file.questions.append(data)

@@ -119,16 +119,51 @@ class ScrollablePage(Page):
 
         
 
-        canvas.bind("<ButtonPress-1>", _on_button_press)
-        self.__scrollable_frame.bind("<ButtonPress-1>", _on_button_press)
-        
-        canvas.bind("<B1-Motion>", _on_drag)
-        self.__scrollable_frame.bind("<B1-Motion>", _on_drag)
-        canvas.bind("<ButtonRelease-1>", _on_button_release)
-        self.__scrollable_frame.bind("<ButtonRelease-1>", _on_button_release)
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
-        canvas.bind_all("<Button-4>", _on_mousewheel)
-        canvas.bind_all("<Button-5>", _on_mousewheel)
+        # Note: drag handlers will be bound/unbound on Enter/Leave below
+        # using bind_all so clicks on child widgets are captured as well.
+        # Bind/unbind global wheel handlers when the pointer enters/leaves
+        # the scrollable area. This keeps wheel handling local to the
+        # visible scroll region and avoids stale global handlers after
+        # pages are hidden/destroyed.
+        def _bind_wheel_to_all(event: Any) -> None:
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+            canvas.bind_all("<Button-4>", _on_mousewheel)
+            canvas.bind_all("<Button-5>", _on_mousewheel)
+
+        def _unbind_wheel_from_all(event: Any) -> None:
+            try:
+                canvas.unbind_all("<MouseWheel>")
+                canvas.unbind_all("<Button-4>")
+                canvas.unbind_all("<Button-5>")
+            except Exception:
+                pass
+
+        def _bind_drag_handlers(event: Any) -> None:
+            # Use bind_all so drag works when pressing on child widgets.
+            canvas.bind_all("<ButtonPress-1>", _on_button_press)
+            canvas.bind_all("<B1-Motion>", _on_drag)
+            canvas.bind_all("<ButtonRelease-1>", _on_button_release)
+
+        def _unbind_drag_handlers(event: Any) -> None:
+            try:
+                canvas.unbind_all("<ButtonPress-1>")
+                canvas.unbind_all("<B1-Motion>")
+                canvas.unbind_all("<ButtonRelease-1>")
+            except Exception:
+                pass
+
+        def _on_enter(event: Any) -> None:
+            _bind_wheel_to_all(event)
+            _bind_drag_handlers(event)
+
+        def _on_leave(event: Any) -> None:
+            _unbind_wheel_from_all(event)
+            _unbind_drag_handlers(event)
+
+        canvas.bind("<Enter>", _on_enter)
+        self.__scrollable_frame.bind("<Enter>", _on_enter)
+        canvas.bind("<Leave>", _on_leave)
+        self.__scrollable_frame.bind("<Leave>", _on_leave)
     @property
     def frame(self):
         """Return the inner scrollable frame so callers draw into it."""
