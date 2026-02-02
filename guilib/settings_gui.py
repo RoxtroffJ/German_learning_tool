@@ -79,6 +79,23 @@ def _draw_settings_frame(parent: tk.Misc, settings: Settings):
 
     theme_combobox.bind("<<ComboboxSelected>>", on_theme_selected)
 
+    # Score exponent selection
+    ttk.Label(parent, text="Select Score Exponent:").grid(column=0, row=3, pady=PADDING)
+    score_exponent_spinbox = tk.Spinbox(parent, from_=1, to=20, increment=1, width=5)
+    score_exponent_spinbox.grid(column=0, row=4, pady=PADDING)
+    score_exponent_spinbox.delete(0, tk.END)  # type: ignore
+    score_exponent_spinbox.insert(0, str(settings.score_exponent))
+
+    def on_score_exponent_changed():
+        try:
+            exponent = int(score_exponent_spinbox.get())
+            _apply_score_exponent(exponent)
+            settings.edit_score_exponent(exponent)
+        except ValueError:
+            pass
+
+    score_exponent_spinbox.config(command=on_score_exponent_changed)
+
     return parent
 
 
@@ -88,6 +105,12 @@ def _apply_theme(theme: str):
     style.theme_use(theme)
     set_custom_styles()
 
+def _apply_score_exponent(exponent: int):
+    """Applies the given score exponent to the application."""
+    from lib import vocabulary
+    vocabulary.SCORE_EXPONENT = exponent
+
 def apply_settings(settings: Settings):
     """Applies the given settings to the application."""
     _apply_theme(settings.theme)
+    _apply_score_exponent(settings.score_exponent)

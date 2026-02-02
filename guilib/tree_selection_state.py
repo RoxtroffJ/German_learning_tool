@@ -225,7 +225,7 @@ class TreeSelectionState:
         """Callback to deselect all items under the node at `path`."""
         self._check_deleted(path)
         node = self._sub_tree(path)
-
+        self._clear_parent_select_all_upwards(path)
         def recurse(t: Tree[TreeSelectionState._NodeData]) -> int:
             delta = 0
 
@@ -247,5 +247,4 @@ class TreeSelectionState:
             return delta
         
         delta = recurse(node)
-
         self._update_counts_upwards(path, delta)
