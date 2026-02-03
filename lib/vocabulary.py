@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import tempfile
+
 from enum import Enum
 
 VOC_FOLDER = Path.cwd() / "data" / "vocabulary"
@@ -114,11 +116,19 @@ class _VocabularyFile:
                 pass
             self.__filepath = new_filepath
 
-        with open(self.__filepath, "w", encoding="utf-8") as f:
+        
+
+        with tempfile.NamedTemporaryFile("w", dir=self.__filepath.parent, encoding="utf-8", delete=False) as f:
             f.write("0\n")  # version
             for q in self.questions:
                 line = f"{q.question}\t{q.answer}\n"
                 f.write(line)
+            
+            f.flush()
+            temp_name = f.name
+        # Move temp file to final location
+        temp_path = Path(temp_name)
+        temp_path.replace(self.__filepath)
 
     def check_saved(self) -> bool:
         """Checks if the current in-memory questions match the saved file."""
@@ -191,9 +201,9 @@ class _VocabularyScoreFile:
             raise ValueError(f"Unsupported vocabulary score file version: {version}")
         
         for line in lines[1:]:
-            line = line.strip()
+            # line = line.strip() # Causes problems
             # Each line is 3 16 bits binary integers: total, correct, streak with no separator
-            if len(line) != 6:
+            if len(line) != 7: # 2 bytes * 3 + 1 byte newline
                 print(f"Warning: skipping malformed line in {filepath}: {line}")
                 continue
 
@@ -217,7 +227,7 @@ class _VocabularyScoreFile:
                 pass
             self.__filepath = new_filepath
 
-        with open(self.__filepath, "wb") as f:
+        with tempfile.NamedTemporaryFile("wb", dir=self.__filepath.parent, delete=False) as f:
             f.write(b"0\n")  # version
             for s in self.scores:
                 total_bytes = s.total.to_bytes(2, byteorder="big")
@@ -225,6 +235,11 @@ class _VocabularyScoreFile:
                 streak_bytes = s.streak.to_bytes(2, byteorder="big")
                 # write each record followed by newline to make files easier to parse
                 f.write(total_bytes + correct_bytes + streak_bytes + b"\n")
+            f.flush()
+            temp_name = f.name
+        # Move temp file to final location
+        temp_path = Path(temp_name)
+        temp_path.replace(self.__filepath)
 
     def check_saved(self) -> bool:
         """Checks if the current in-memory scores match the saved file."""

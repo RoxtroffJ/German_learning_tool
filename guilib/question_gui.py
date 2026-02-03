@@ -82,6 +82,8 @@ class QuestionnerPage(Page):
 
         weights = [question.get_probability() for question in self.__question_list]
 
+        print("Pulling one from", len(self.__question_list), "questions")
+
         sum_denom = sum(weights)
         sum_numer = sum([question.get_probability() * question.get_average() for question in self.__question_list])
 
