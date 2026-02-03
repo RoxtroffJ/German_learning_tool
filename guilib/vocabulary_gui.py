@@ -381,19 +381,20 @@ class SetPage(Page):
 
             self._editable_var = editable
 
-            question_frame = ttk.Frame(self)
-            self._question_entry = ttk.Entry(question_frame, textvariable=self._question_var)
-            self._question_entry.grid(column=1, row=0, sticky="EW", padx=PADDING, pady=PADDING)
-            ttk.Label(question_frame, text="Q:").grid(column=0, row=0, padx=PADDING, pady=PADDING)
-
 
             answer_frame = ttk.Frame(self)
             self._answer_entry = ttk.Entry(answer_frame, textvariable=self._answer_var)
             self._answer_entry.grid(column=1, row=0, sticky="EW", padx=PADDING, pady=PADDING)
             ttk.Label(answer_frame, text="A:").grid(column=0, row=0, padx=PADDING, pady=PADDING)
 
-            question_frame.grid(column=1, row=0, sticky="EW")
+            question_frame = ttk.Frame(self)
+            self._question_entry = ttk.Entry(question_frame, textvariable=self._question_var)
+            self._question_entry.grid(column=1, row=0, sticky="EW", padx=PADDING, pady=PADDING)
+            ttk.Label(question_frame, text="Q:").grid(column=0, row=0, padx=PADDING, pady=PADDING)
+
+
             answer_frame.grid(column=0, row=0, sticky="EW")
+            question_frame.grid(column=1, row=0, sticky="EW")
 
             if self._on_delete is not None:
                 self._delete_button = ttk.Button(self, text="✕", width=_DELETE_BUTTON_WIDTH, command=self.delete_row)
