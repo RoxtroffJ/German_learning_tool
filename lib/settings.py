@@ -6,7 +6,8 @@ class Settings:
     """Stores the settings for the application."""
     def __init__(self):
         self.__theme = "default"
-        self.__score_exponent = 2
+        self.__score_momory = 5
+        self.__insistence_exponent = 2.0
     
     def save(self):
         """Saves the settings to the settings file."""
@@ -35,9 +36,14 @@ class Settings:
         """Returns the current theme setting."""
         return self.__theme
     @property
-    def score_exponent(self) -> int:
+    def score_exponent(self) -> float:
         """Returns the current score exponent setting."""
-        return self.__score_exponent
+        return self.__score_momory
+    @property
+    def insistence_exponent(self) -> float:
+        """Returns the current insistence exponent setting."""
+        return self.__insistence_exponent
+
     @theme.setter
     def theme(self, new_theme: str):
         """Sets the theme setting."""
@@ -45,15 +51,24 @@ class Settings:
     @score_exponent.setter
     def score_exponent(self, new_exponent: int):
         """Sets the score exponent setting."""
-        self.__score_exponent = new_exponent
+        self.__score_momory = new_exponent
+
+    @insistence_exponent.setter
+    def insistence_exponent(self, new_exponent: float):
+        """Sets the insistence exponent setting."""
+        self.__insistence_exponent = new_exponent
 
     def edit_theme(self, new_theme: str):
         """Edits the theme setting."""
         self.__theme = new_theme
     
-    def edit_score_exponent(self, new_exponent: int):
+    def edit_score_memory(self, new_score_memory: float):
         """Edits the score exponent setting."""
-        self.__score_exponent = new_exponent
+        self.__score_momory = new_score_memory
+
+    def edit_insistence_exponent(self, new_insistence_exponent: float):
+        """Edits the insistence exponent setting."""
+        self.__insistence_exponent = new_insistence_exponent
 
     def needs_saving(self):
         """Indicates whether the settings are saved or not."""

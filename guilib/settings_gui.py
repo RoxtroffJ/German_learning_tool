@@ -1,3 +1,4 @@
+import math
 import tkinter as tk
 import tkinter.ttk as ttk
 import tkinter.messagebox as tkmsgbox
@@ -80,21 +81,38 @@ def _draw_settings_frame(parent: tk.Misc, settings: Settings):
     theme_combobox.bind("<<ComboboxSelected>>", on_theme_selected)
 
     # Score exponent selection
-    ttk.Label(parent, text="Select Score Exponent:").grid(column=0, row=3, pady=PADDING)
-    score_exponent_spinbox = tk.Spinbox(parent, from_=1, to=20, increment=1, width=5)
+    ttk.Label(parent, text="Select Score Lifetime:").grid(column=0, row=3, pady=PADDING)
+    score_exponent_spinbox = tk.Spinbox(parent, from_=0.001, to=10**9, increment=1, width=5)
     score_exponent_spinbox.grid(column=0, row=4, pady=PADDING)
     score_exponent_spinbox.delete(0, tk.END)  # type: ignore
     score_exponent_spinbox.insert(0, str(settings.score_exponent))
 
     def on_score_exponent_changed():
         try:
-            exponent = int(score_exponent_spinbox.get())
+            exponent = float(score_exponent_spinbox.get())
             _apply_score_exponent(exponent)
-            settings.edit_score_exponent(exponent)
+            settings.edit_score_memory(exponent)
         except ValueError:
             pass
 
     score_exponent_spinbox.config(command=on_score_exponent_changed)
+
+    # Insistence exponent selection
+    ttk.Label(parent, text="Select Insistence:").grid(column=0, row=5, pady=PADDING)
+    insistence_exponent_spinbox = tk.Spinbox(parent, from_=1, to=10, increment=0.1, width=5)
+    insistence_exponent_spinbox.grid(column=0, row=6, pady=PADDING)
+    insistence_exponent_spinbox.delete(0, tk.END)  # type: ignore
+    insistence_exponent_spinbox.insert(0, str(settings.insistence_exponent))
+
+    def on_insistence_exponent_changed():
+        try:
+            exponent = float(insistence_exponent_spinbox.get())
+            _apply_insistence_exponent(exponent)
+            settings.edit_insistence_exponent(exponent)
+        except ValueError:
+            pass
+
+    insistence_exponent_spinbox.config(command=on_insistence_exponent_changed)
 
     return parent
 
@@ -105,12 +123,20 @@ def _apply_theme(theme: str):
     style.theme_use(theme)
     set_custom_styles()
 
-def _apply_score_exponent(exponent: int):
+def _apply_score_exponent(exponent: float):
     """Applies the given score exponent to the application."""
-    from lib import vocabulary
-    vocabulary.SCORE_EXPONENT = exponent
+    import lib.score as score
+    
+    score.SCORE_LIFETIME = math.exp(-1 / exponent)
+
+def _apply_insistence_exponent(exponent: float):
+    """Applies the given insistence exponent to the application."""
+    import guilib.question_gui as question_gui
+
+    question_gui.INSISTENCE = exponent
 
 def apply_settings(settings: Settings):
     """Applies the given settings to the application."""
     _apply_theme(settings.theme)
     _apply_score_exponent(settings.score_exponent)
+    _apply_insistence_exponent(settings.insistence_exponent)

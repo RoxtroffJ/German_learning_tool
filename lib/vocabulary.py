@@ -2,6 +2,8 @@ from pathlib import Path
 
 import tempfile
 
+from lib.score import Score, ScoreFile
+
 from enum import Enum
 
 VOC_FOLDER = Path.cwd() / "data" / "vocabulary"
@@ -10,7 +12,7 @@ VOC_SCORES_FOLDER = Path.cwd() / "scores" / "vocabulary"
 VOC_FOLDER.mkdir(parents=True, exist_ok=True)
 VOC_SCORES_FOLDER.mkdir(parents=True, exist_ok=True)
 
-SCORE_EXPONENT = 2
+
 
 class Gender(Enum):
     """Enumeration of German noun genders."""
@@ -40,19 +42,7 @@ class _QuestionData:
             return False
         return self.question == other.question and self.answer == other.answer
 
-class _QuestionScore:
-    """Internal data structure for vocabulary question score storage."""
-    def __init__(self, total: int = 0, correct: int = 0, streak: int = 0):
-        self.correct = correct
-        self.total = total
-        self.streak = streak
 
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, _QuestionScore):
-            return False
-        return (self.total == other.total and
-                self.correct == other.correct and
-                self.streak == other.streak)
 
 class _VocabularyFile:
     """Handles loading and saving of vocabulary files."""
@@ -169,127 +159,17 @@ class _VocabularyFile:
         """Renames the vocabulary file."""
         self.__name = new_name
 
-class _VocabularyScoreFile:
-    """Handles loading and saving of vocabulary score files."""
-    
-    @staticmethod
-    def _filepath_for_name(name: str) -> Path:
-        return VOC_SCORES_FOLDER / f"{name}.voc_score"
-    
-    def __init__(self, name: str, scores: list[_QuestionScore] | None = None):
-        self.__name = name
-        self.__filepath = self._filepath_for_name(name)
-        self.scores: list[_QuestionScore] = scores if scores is not None else []
-    
-    @classmethod
-    def load(cls, name: str) -> "_VocabularyScoreFile":
-        """Loads a vocabulary score file."""
-        
-        score_file = cls(name)
-        filepath = score_file.__filepath
 
-        # Binary files encoding with version header
-
-        if not filepath.exists():
-            return score_file  # no scores yet
-
-        with open(filepath, "rb") as f:
-            lines = f.readlines()
-
-        version = lines[0].strip().decode("utf-8")
-        if version != "0":
-            raise ValueError(f"Unsupported vocabulary score file version: {version}")
-        
-        for line in lines[1:]:
-            # line = line.strip() # Causes problems
-            # Each line is 3 16 bits binary integers: total, correct, streak with no separator
-            if len(line) != 7: # 2 bytes * 3 + 1 byte newline
-                print(f"Warning: skipping malformed line in {filepath}: {line}")
-                continue
-
-            total = int.from_bytes(line[0:2], byteorder="big")
-            correct = int.from_bytes(line[2:4], byteorder="big")
-            streak = int.from_bytes(line[4:6], byteorder="big")
-
-            score = _QuestionScore(total, correct, streak)
-            score_file.scores.append(score)
-        
-        return score_file
-    
-    def save(self):
-        """Saves the vocabulary score file to its filepath."""
-        # Renames if needed
-        new_filepath = self._filepath_for_name(self.__name)
-        if new_filepath != self.__filepath:
-            try:
-                self.__filepath.rename(new_filepath)
-            except:
-                pass
-            self.__filepath = new_filepath
-
-        with tempfile.NamedTemporaryFile("wb", dir=self.__filepath.parent, delete=False) as f:
-            f.write(b"0\n")  # version
-            for s in self.scores:
-                total_bytes = s.total.to_bytes(2, byteorder="big")
-                correct_bytes = s.correct.to_bytes(2, byteorder="big")
-                streak_bytes = s.streak.to_bytes(2, byteorder="big")
-                # write each record followed by newline to make files easier to parse
-                f.write(total_bytes + correct_bytes + streak_bytes + b"\n")
-            f.flush()
-            temp_name = f.name
-        # Move temp file to final location
-        temp_path = Path(temp_name)
-        temp_path.replace(self.__filepath)
-
-    def check_saved(self) -> bool:
-        """Checks if the current in-memory scores match the saved file."""
-        if not self.__filepath.exists():
-            return False
-        
-        try:
-            saved_file = _VocabularyScoreFile.load(self.__name)
-        except:
-            return False
-        return self == saved_file
-
-    def delete(self):
-        """Deletes the vocabulary score file."""
-        try:
-            self.__filepath.unlink()
-        except:
-            pass
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, _VocabularyScoreFile):
-            return False
-        if self.__name != other.__name:
-            return False
-        if len(self.scores) != len(other.scores):
-            return False
-        for a, b in zip(self.scores, other.scores):
-            if a != b:
-                return False
-        return True
-
-    @property
-    def name(self) -> str:
-        """Returns the name of the vocabulary score file."""
-        return self.__name
-    
-    @name.setter
-    def name(self, new_name: str):
-        """Renames the vocabulary score file."""
-        self.__name = new_name
 
 
 class Question:
     """Represents a single vocabulary question."""
-    def __init__(self, data: _QuestionData | None = None, score: _QuestionScore | None = None):
+    def __init__(self, data: _QuestionData | None = None, score: Score | None = None):
         self._data = data if data is not None else _QuestionData("", "")
-        self._score = score if score is not None else _QuestionScore()
+        self._score = score if score is not None else Score()
     
 
-    def add_to_files(self, voc_file: _VocabularyFile, score_file: _VocabularyScoreFile):
+    def add_to_files(self, voc_file: _VocabularyFile, score_file: ScoreFile):
         """Adds this question to the given vocabulary and score files."""
         voc_file.questions.append(self._data)
         score_file.scores.append(self._score)
@@ -308,35 +188,28 @@ class Question:
     def score(self) -> float:
         """Returns the question score."""
         score = self._score
-        return (score.streak * score.total / (score.total - score.correct + 1)) ** SCORE_EXPONENT
+        return score.score
     
-    def avg(self) -> float:
+    def average(self) -> float:
         """Returns the average score (correct/total) for this question."""
-        if self._score.total == 0:
-            return 0.0
-        return self._score.correct / self._score.total
+        return self._score.average
 
     def score_str(self) -> str:
         """Returns a string representation of the question score."""
         if self._score.total == 0:
             return "No attempts"
-        percentage = (self._score.correct / self._score.total) * 100
-        return f"{self._score.correct}/{self._score.total} correct ({percentage:.1f}%), Streak: {self._score.streak}"
+        percentage = (self._score.average) * 100
+        return f"{percentage:.1f}%, Streak: {self._score.streak}"
     
     def update_score(self, correct: bool):
         """Updates the question score based on whether the answer was correct."""
-        self._score.total += 1
-        if correct:
-            self._score.correct += 1
-            self._score.streak += 1
-        else:
-            self._score.streak = 0
+        self._score.update(correct)
 
     def reset_with(self, question: str, answer: str):
         """Resets the question and answer strings, as well as score in place."""
         self._data.question = question
         self._data.answer = answer
-        self._score = _QuestionScore()
+        self._score = Score()
 
 class QuestionSet:
 
@@ -348,11 +221,11 @@ class QuestionSet:
         self._name = name if name is not None else self.new_set_name
         
         self._vocab_file = _VocabularyFile.load(self._name)
-        self._score_file = _VocabularyScoreFile.load(self._name)
+        self._score_file = ScoreFile.load(VOC_SCORES_FOLDER, self._name)
 
         # Ensure scores list matches questions list
         while len(self._score_file.scores) < len(self._vocab_file.questions):
-            self._score_file.scores.append(_QuestionScore())
+            self._score_file.scores.append(Score())
         
         # Save scores if needed
         if not self._score_file.check_saved():

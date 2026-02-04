@@ -10,6 +10,8 @@ from typing import Callable
 from guilib import PADDING
 from guilib.pages import Page
 
+INSISTENCE = 2.0
+
 class CallOnce:
     """Utility class to ensure a callable is only called once."""
     def __init__(self, func: Callable[[], None]):
@@ -80,12 +82,12 @@ class QuestionnerPage(Page):
 
         from random import choices
 
-        weights = [question.get_probability() for question in self.__question_list]
+        weights = [question.get_probability() ** INSISTENCE for question in self.__question_list]
 
         print("Pulling one from", len(self.__question_list), "questions")
 
         sum_denom = sum(weights)
-        sum_numer = sum([question.get_probability() * question.get_average() for question in self.__question_list])
+        sum_numer = sum([question.get_probability() ** INSISTENCE * question.get_average() for question in self.__question_list])
 
         self.progress_var.set(0.0 if sum_denom == 0 else sum_numer / sum_denom)
 

@@ -625,10 +625,10 @@ class QuestionDrawer(QD):
         """Returns the probability as a float."""
         score = self._question_set.get_question(self._question_idx).score
 
-        return 1 / (score + 1)
+        return 1-score
     
     def get_average(self) -> float:
-        return self._question_set.get_question(self._question_idx).avg()
+        return self._question_set.get_question(self._question_idx).average()
     
     def draw(self, root: tk.Misc, on_answered: CallOnce) -> None:
         """Draws the question on the given root widget. 
